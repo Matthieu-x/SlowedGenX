@@ -9,8 +9,6 @@ import pino from "pino";
 import chalk from "chalk";
 import fs from "fs";
 
-const CODIGO_PERSONALIZADO = "RINNSAKA";
-
 async function pedirCodigoPairing(
   sock,
   numero,
@@ -27,8 +25,7 @@ async function pedirCodigoPairing(
 
   try {
     const code = await sock.requestPairingCode(
-      numero.trim(),
-      CODIGO_PERSONALIZADO
+      numero.trim()
     );
 
     onPairingCode(code);
@@ -226,15 +223,11 @@ export async function crearBot({
   );
 
   /*
-   * PAIRING PERSONALIZADO
-   * =====================
+   * PAIRING
+   * =======
    *
-   * El fork debe soportar:
-   *
-   * requestPairingCode(numero, codigo)
-   *
-   * Código personalizado:
-   * RINNSAKA
+   * requestPairingCode(numero) sin codigo custom —
+   * WhatsApp genera uno aleatorio de 8 caracteres.
    */
   if (
     !yaRegistrado &&

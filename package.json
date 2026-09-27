@@ -13,7 +13,7 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
-    "@whiskeysockets/baileys": "github:Andresv27728/baileys-beta",
+    "@whiskeysockets/baileys": "github:Matthieu-x/noth-bails",
     "sharp": "^0.33.5",
     "axios": "^1.7.9",
     "@hapi/boom": "^10.0.1",

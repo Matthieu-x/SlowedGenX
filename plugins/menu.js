@@ -98,7 +98,7 @@ function renderComando(plugin) {
     "Sin descripción";
 
   return (
-    ` ┆╭┈ *○* • 🌾·ઈ ${principal}${alias}\n` +
+    ` ┆╭┈ *○* • 🔮·ઈ ${principal}${alias}\n` +
     ` ┆┆${descripcion}\n`
   );
 }
@@ -120,7 +120,7 @@ function renderSeccion(categoria, plugins, index) {
     `╭┈ ࣪ ${icon}⌒⏜ ׅ *${titulo}* ㅤ  ꒢∩᷼⌒\n` +
     ` ┆┆${descripcion}\n` +
     comandos +
-    ` ╰۫╼࣪╼࣪╾ ○ ···𖹭 ִֶ •┄┈┈┈┈┈┈┈┈• •┄ׅ꣸⃪ꠋ᰷\n`
+    ` ╰۫╼࣪╼࣪╾ ○ ·🔮·𖹭 ִֶ •┄┈┈┈┈┈┈┈┈• •┄ׅ꣸⃪ꠋ᰷\n`
   );
 }
 

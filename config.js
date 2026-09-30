@@ -1,7 +1,7 @@
 export const config = {
   botName: "SlowedGenX",
   version: "1.0.0",
-  creator: "Duan & BrayanRK",
+  creator: "Duan & Jhon",
   sessionFolder: "./sessions/main",
   subBotsFolder: "./sessions/subbots",
   ownerNumber: "584223342535",

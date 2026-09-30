@@ -3,9 +3,17 @@ import { config } from "../config.js";
 
 const soloNumero = (valor) => String(valor || "").replace(/\D/g, "");
 
-const esOwner = (sender) => {
-  const numeroSender = soloNumero(sender);
+const esOwner = async (sock, sender) => {
+  let jid = sender;
+
+  try {
+    const resuelto = await sock.resolveLidToJid(sender);
+    if (resuelto) jid = resuelto;
+  } catch {}
+
+  const numeroSender = soloNumero(jid);
   if (!numeroSender) return false;
+
   return (config.owners || []).some((o) => soloNumero(o) === numeroSender);
 };
 
@@ -16,7 +24,7 @@ export default {
   run: async (sock, msg, args, context) => {
     const { chatId, sender } = context;
 
-    if (!esOwner(sender)) {
+    if (!(await esOwner(sock, sender))) {
       await sock.sendMessage(chatId, { text: "No tenés permiso para usar este comando." }, { quoted: msg });
       return;
     }

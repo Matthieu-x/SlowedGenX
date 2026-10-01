@@ -303,10 +303,8 @@ export default {
   `\n` +
   `╭━━━━━━━━━━━━━━━━━━━━━━╮\n` +
   `│ 𖤐 *${config.botName}*\n` +
-  `│ ✦ Anime Edition\n` +
-  `│ 𖦹 Creador › *${config.creator}*\n` +
-  `╰━━━━━━━━━━━━━━━━━━━━━━╯\n` +
-  `\n𖤐 ━━━ ✦ ━━━ 𖤐\n`;
+  `│ 𖦹 Creador › *${config.creator}*\n` + `╰━━━━━━━━━━━━━━━━━━━━━━╯\n` +
+    `\n𖤐 ━━━ ✦ ━━━ 𖤐\n`;
 
       const texto =
         header +

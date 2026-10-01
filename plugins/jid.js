@@ -6,16 +6,23 @@ export default {
   run: async (sock, msg, args, context) => {
     const { chatId } = context;
 
-    const jid = msg.key?.remoteJid;
+    const contextInfo =
+      msg.message?.extendedTextMessage?.contextInfo ||
+      msg.message?.imageMessage?.contextInfo ||
+      msg.message?.videoMessage?.contextInfo ||
+      msg.message?.documentMessage?.contextInfo;
 
-    if (!jid || !jid.endsWith('@newsletter')) {
+    // Buscar el JID del mensaje citado
+    const quotedJid = contextInfo?.remoteJid;
+
+    if (!quotedJid || !quotedJid.endsWith('@newsletter')) {
       return sock.sendMessage(chatId, {
-        text: '❌ Este comando debe ejecutarse desde un mensaje de un Newsletter.'
+        text: '❌ Responde directamente a una publicación del Newsletter y usa .jid'
       }, { quoted: msg });
     }
 
     await sock.sendMessage(chatId, {
-      text: `📌 𝙅𝙄𝘿 𝙉𝙚𝙬𝙨𝙡𝙚𝙩𝙩𝙚𝙧\n\n${jid}`
+      text: `📌 𝙏𝙪 𝙅𝙄𝘿 ♡\n\n${quotedJid}`
     }, { quoted: msg });
   }
 };

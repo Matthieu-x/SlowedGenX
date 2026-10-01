@@ -4,8 +4,11 @@ export const config = {
   creator: "Duan & Jhon",
   sessionFolder: "./sessions/main",
   subBotsFolder: "./sessions/subbots",
-  ownerNumber: "50375638328",
-  owners: ["26195676684428", "205724672110753"],
+  ownerNumber: "50497305037",
+  owners: [
+    "50497305037",     // número real del owner 1
+    "504XXXXXXXX",     // número real del owner 2
+  ],
   canal: null,
 
   welcome: {
@@ -13,4 +16,3 @@ export const config = {
     mensajeDespedida: "${mention}* se fue de {grupo}. Ya somos {cantidad}.",
   },
 };
-

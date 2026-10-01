@@ -4,10 +4,10 @@ export const config = {
   creator: "Duan & Jhon",
   sessionFolder: "./sessions/main",
   subBotsFolder: "./sessions/subbots",
-  ownerNumber: "50497305037",
+  ownerNumber: "50375638328",
   owners: [
-    "50497305037",     // número real del owner 1
-    "504XXXXXXXX",     // número real del owner 2
+    "50375638328",     // número real del owner 1
+    "50375638328",     // número real del owner 2
   ],
   canal: null,
 

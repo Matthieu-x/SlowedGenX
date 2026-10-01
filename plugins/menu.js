@@ -3,14 +3,30 @@ import path from "path";
 import { config } from "../config.js";
 
 // ─────────────────────────────────────────────
-// ⚔️ ICONOS DE CATEGORÍAS
+// 𖤐 Configuración de categorías
 // ─────────────────────────────────────────────
 
 const CATEGORY_ICONS = [
-  "⚔️", "🔥", "👹", "🐉", "🩸",
-  "🌑", "💀", "🗡️", "⚡", "🖤",
-  "👑", "🔱", "🌪️", "☄️", "🛡️",
-  "🎴", "⛓️", "🦂", "🌋", "🔮"
+  "𖤐",
+  "𖦹",
+  "✦",
+  "✧",
+  "⟡",
+  "⊹",
+  "⋆",
+  "𖥔",
+  "༺",
+  "❖",
+  "⚡",
+  "♢",
+  "☾",
+  "⌁",
+  "◈",
+  "✶",
+  "𖠿",
+  "⛧",
+  "✷",
+  "❂"
 ];
 
 function limpiarCategoria(categoria) {
@@ -20,28 +36,42 @@ function limpiarCategoria(categoria) {
 }
 
 function nombreCategoria(categoria) {
-  return limpiarCategoria(categoria)
+  const key = limpiarCategoria(categoria);
+
+  return key
     .replace(/[-_]+/g, " ")
     .replace(/\s+/g, " ")
     .trim()
     .toUpperCase();
 }
 
+function descripcionCategoria(categoria) {
+  const key = limpiarCategoria(categoria);
+
+  return `Comandos de ${key.replace(/[-_]+/g, " ")}`;
+}
+
 function iconoCategoria(index) {
-  return CATEGORY_ICONS[index % CATEGORY_ICONS.length];
+  return CATEGORY_ICONS[
+    index % CATEGORY_ICONS.length
+  ];
 }
 
 // ─────────────────────────────────────────────
-// ⚔️ AGRUPAR PLUGINS
+// 𖤐 Agrupar plugins automáticamente
 // ─────────────────────────────────────────────
 
 function agrupar(plugins) {
   const grupos = new Map();
 
   for (const plugin of plugins) {
-    if (!plugin || !Array.isArray(plugin.command)) continue;
+    if (!plugin || !Array.isArray(plugin.command)) {
+      continue;
+    }
 
-    const categoria = limpiarCategoria(plugin.category);
+    const categoria = limpiarCategoria(
+      plugin.category
+    );
 
     if (!grupos.has(categoria)) {
       grupos.set(categoria, []);
@@ -54,7 +84,7 @@ function agrupar(plugins) {
 }
 
 // ─────────────────────────────────────────────
-// 🗡️ RENDER COMANDO
+// 𖦹 Render comando
 // ─────────────────────────────────────────────
 
 function renderComando(plugin) {
@@ -62,7 +92,8 @@ function renderComando(plugin) {
     ? plugin.command
     : [plugin.command];
 
-  const principal = comandos[0] || "sin-comando";
+  const principal =
+    comandos[0] || "sin-comando";
 
   const alias =
     comandos.length > 1
@@ -70,22 +101,32 @@ function renderComando(plugin) {
       : "";
 
   const descripcion =
-    plugin.description || "Sin descripción";
+    plugin.description ||
+    "Sin descripción";
 
   return (
-    `│\n` +
-    `├─ ⚔️ *.${principal}*${alias}\n` +
-    `│  └─ ${descripcion}\n`
+    `│ 𖦹 *.${principal}*${alias}\n` +
+    `│   ╰─ ${descripcion}\n`
   );
 }
 
 // ─────────────────────────────────────────────
-// 🔥 RENDER CATEGORÍA
+// ✦ Render sección automática
 // ─────────────────────────────────────────────
 
-function renderSeccion(categoria, plugins, index) {
-  const icon = iconoCategoria(index);
-  const titulo = nombreCategoria(categoria);
+function renderSeccion(
+  categoria,
+  plugins,
+  index
+) {
+  const icon =
+    iconoCategoria(index);
+
+  const titulo =
+    nombreCategoria(categoria);
+
+  const descripcion =
+    descripcionCategoria(categoria);
 
   const comandos = plugins
     .map(renderComando)
@@ -93,22 +134,29 @@ function renderSeccion(categoria, plugins, index) {
 
   return (
     `\n` +
-    `╭━━━〔 ${icon} *${titulo}* 〕━━━╮\n` +
+    `╭─〔 ${icon} *${titulo}* 〕─╮\n` +
+    `│ ✦ ${descripcion}\n` +
     comandos +
-    `╰━━━━━━━━━━━━━━━━━━━━━━━━╯\n`
+    `╰────────────────────╯\n`
   );
 }
 
 // ─────────────────────────────────────────────
-// ⚔️ MENU
+// 𖤐 Comando MENU
 // ─────────────────────────────────────────────
 
 export default {
   command: ["menu"],
   category: "main",
-  description: "Muestra el menú principal",
+  description: "Muestra el menú de comandos",
 
-  run: async (sock, msg, args, context) => {
+  run: async (
+    sock,
+    msg,
+    args,
+    context
+  ) => {
+
     const {
       chatId,
       sender,
@@ -118,7 +166,7 @@ export default {
     try {
 
       // ─────────────────────────────────────────
-      // ✍️ PRESENCIA
+      // Indicador de escritura
       // ─────────────────────────────────────────
 
       try {
@@ -127,13 +175,15 @@ export default {
           chatId
         );
 
-        await new Promise(resolve =>
-          setTimeout(resolve, 1800)
+        await new Promise(
+          resolve =>
+            setTimeout(resolve, 3000)
         );
+
       } catch {}
 
       // ─────────────────────────────────────────
-      // 📊 INFORMACIÓN
+      // Datos generales
       // ─────────────────────────────────────────
 
       const pluginsValidos =
@@ -148,8 +198,8 @@ export default {
 
       const totalComandos =
         pluginsValidos.reduce(
-          (total, plugin) =>
-            total + plugin.command.length,
+          (acc, plugin) =>
+            acc + plugin.command.length,
           0
         );
 
@@ -158,62 +208,72 @@ export default {
 
       const tipo =
         chatId.endsWith("@g.us")
-          ? "Grupo"
+          ? "Grupal"
           : "Privado";
 
       const mention =
         "@" + sender.split("@")[0];
 
+      const channelLine =
+        config.canal
+          ? `│ ✦ Canal › *${config.canal}*\n`
+          : "";
+
       // ─────────────────────────────────────────
-      // 👑 CABECERA
+      // 𖤐 HEADER
       // ─────────────────────────────────────────
 
       const header =
 
         `╭━━━━━━━━━━━━━━━━━━━━━━╮\n` +
-        `┃\n` +
-        `┃   ⚔️ *${config.botName}* ⚔️\n` +
-        `┃     *MENÚ PRINCIPAL*\n` +
-        `┃\n` +
+        `│\n` +
+        `│    𖤐 *${config.botName}* 𖤐\n` +
+        `│      『 MENÚ PRINCIPAL 』\n` +
+        `│\n` +
         `╰━━━━━━━━━━━━━━━━━━━━━━╯\n\n` +
 
-        `╭─〔 👹 *BIENVENIDO* 〕─╮\n` +
+        `╭─〔 𖦹 *BIENVENIDA* 〕─╮\n` +
         `│\n` +
-        `│ ⚔️ Hola, ${mention}\n` +
-        `│ 🖤 Soy *${config.botName}*\n` +
-        `│ 🔥 Aquí tienes mis comandos\n` +
+        `│ 𖤐 Hola *${mention}*\n` +
+        `│ 𖦹 Soy *${config.botName}*\n` +
+        `│ ✦ Bienvenido a mi menú\n` +
         `│\n` +
-        `├─〔 ⚡ *INFORMACIÓN* 〕\n` +
+        `├─〔 ⟡ *INFORMACIÓN* 〕\n` +
         `│\n` +
-        `├─ 👑 Versión › *${config.version}*\n` +
-        `├─ ⚔️ Tipo › *${tipo}*\n` +
-        `├─ 🔥 Comandos › *${totalComandos}*\n` +
-        `├─ 🛠️ Plugins › *${totalPlugins}*\n` +
-        `│\n`;
-
-      const canal =
-        config.canal
-          ? `├─ 📡 Canal › *${config.canal}*\n│\n`
-          : "";
+        `│ 𖤐 Versión › *${config.version}*\n` +
+        `│ 𖦹 Tipo › *${tipo}*\n` +
+        `│ ✦ Comandos › *${totalComandos}*\n` +
+        `│ ✧ Plugins › *${totalPlugins}*\n` +
+        channelLine +
+        `╰────────────────────╯\n`;
 
       // ─────────────────────────────────────────
-      // 📂 CATEGORÍAS
+      // 𖤐 Categorías automáticas
       // ─────────────────────────────────────────
 
       const grupos =
         agrupar(pluginsValidos);
 
       let secciones = "";
+
       let indice = 0;
 
-      for (const [categoria, plugins] of grupos) {
+      for (
+        const [categoria, plugins]
+        of grupos
+      ) {
 
         plugins.sort((a, b) => {
+
           const aName =
-            String(a.command?.[0] || "");
+            String(
+              a.command?.[0] || ""
+            );
 
           const bName =
-            String(b.command?.[0] || "");
+            String(
+              b.command?.[0] || ""
+            );
 
           return aName.localeCompare(
             bName,
@@ -222,42 +282,39 @@ export default {
               sensitivity: "base"
             }
           );
+
         });
 
-        secciones += renderSeccion(
-          categoria,
-          plugins,
-          indice
-        );
+        secciones +=
+          renderSeccion(
+            categoria,
+            plugins,
+            indice
+          );
 
         indice++;
       }
 
       // ─────────────────────────────────────────
-      // 👑 FOOTER
+      // ✦ FOOTER
       // ─────────────────────────────────────────
 
       const footer =
 
         `\n` +
         `╭━━━━━━━━━━━━━━━━━━━━━━╮\n` +
-        `┃\n` +
-        `┃ 👑 *${config.botName}*\n` +
-        `┃ 🔮 Gojo satoru 
-        `┃ 🌑 Anime edition\n` +
-        `┃\n` +
-        `╰━━━━━━━━━━━━━━━━━━━━━━╯\n\n` +
-        `       ⚔️ ━━ 🖤 ━━ ⚔️`;
+        `│ 𖤐 *${config.botName}*\n` +
+        `│ ✦ Anime Edition\n` +
+        `╰━━━━━━━━━━━━━━━━━━━━━━╯\n` +
+        `\n𖤐 ━━━ ✦ ━━━ 𖤐\n`;
 
       const texto =
         header +
-        canal +
-        `╰━━━━━━━━━━━━━━━━━━━━━━╯\n` +
         secciones +
         footer;
 
       // ─────────────────────────────────────────
-      // ⏸️ DETENER PRESENCIA
+      // Detener indicador
       // ─────────────────────────────────────────
 
       try {
@@ -268,7 +325,7 @@ export default {
       } catch {}
 
       // ─────────────────────────────────────────
-      // 🖼️ IMAGEN
+      // 🖼️ Imagen del menú
       // ─────────────────────────────────────────
 
       const rutaImagen =
@@ -278,13 +335,20 @@ export default {
           "menu.jpeg"
         );
 
-      if (fs.existsSync(rutaImagen)) {
+      if (
+        fs.existsSync(rutaImagen)
+      ) {
 
         await sock.sendMessage(
           chatId,
           {
-            image: fs.readFileSync(rutaImagen),
+            image:
+              fs.readFileSync(
+                rutaImagen
+              ),
+
             caption: texto,
+
             mentions: [sender]
           },
           {
@@ -298,6 +362,7 @@ export default {
           chatId,
           {
             text: texto,
+
             mentions: [sender]
           },
           {
@@ -324,13 +389,13 @@ export default {
         chatId,
         {
           text:
-            `╭━━〔 ❌ *ERROR* 〕━━╮\n` +
+            `╭━━〔 ❌ *ERROR DEL MENÚ* 〕━━╮\n` +
             `│\n` +
             `│ No se pudo generar el menú.\n` +
             `│\n` +
             `│ ⚡ ${error.message || "Error desconocido"}\n` +
             `│\n` +
-            `╰━━━━━━━━━━━━━━━━━━━━╯`
+            `╰━━━━━━━━━━━━━━━━━━━━━━━━╯`
         },
         {
           quoted: msg

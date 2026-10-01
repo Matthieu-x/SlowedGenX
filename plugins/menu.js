@@ -300,13 +300,13 @@ export default {
       // ─────────────────────────────────────────
 
       const footer =
-
-        `\n` +
-        `╭━━━━━━━━━━━━━━━━━━━━━━╮\n` +
-        `│ 𖤐 *${config.botName}*\n` +
-        `│ ✦ Anime Edition\n` +
-        `╰━━━━━━━━━━━━━━━━━━━━━━╯\n` +
-        `\n𖤐 ━━━ ✦ ━━━ 𖤐\n`;
+  `\n` +
+  `╭━━━━━━━━━━━━━━━━━━━━━━╮\n` +
+  `│ 𖤐 *${config.botName}*\n` +
+  `│ ✦ Anime Edition\n` +
+  `│ 𖦹 Creador › *${config.creator}*\n` +
+  `╰━━━━━━━━━━━━━━━━━━━━━━╯\n` +
+  `\n𖤐 ━━━ ✦ ━━━ 𖤐\n`;
 
       const texto =
         header +

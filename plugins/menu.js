@@ -243,8 +243,8 @@ export default {
         `╭━━━━━━━━━━━━━━━━━━━━━━╮\n` +
         `┃\n` +
         `┃ 👑 *${config.botName}*\n` +
-        `┃ ⚔️ Creador › *${config.creator}*\n` +
-        `┃ 🌑 Anime Edition\n` +
+        `┃ 🔮 Gojo satoru 
+        `┃ 🌑 Anime edition\n` +
         `┃\n` +
         `╰━━━━━━━━━━━━━━━━━━━━━━╯\n\n` +
         `       ⚔️ ━━ 🖤 ━━ ⚔️`;

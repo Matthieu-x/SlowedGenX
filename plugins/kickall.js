@@ -9,7 +9,7 @@ export default {
     // Verificar que sea un grupo
     if (!chatId.endsWith('@g.us')) {
       return sock.sendMessage(chatId, {
-        text: '❌ Este comando solo puede usarse en grupos.'
+        text: '🔪 Este comando solo puede usarse en grupos.'
       }, { quoted: msg });
     }
 

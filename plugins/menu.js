@@ -236,7 +236,7 @@ export default {
         `│\n` +
         `│ 𖤐 Hola *${mention}*\n` +
         `│ 𖦹 Soy *${config.botName}*\n` +
-        `│ ✦ Bienvenido a mi menú\n` +
+        `│ 𖦹 Bienvenido a mi menú\n` +
         `│\n` +
         `├─〔 ⟡ *INFORMACIÓN* 〕\n` +
         `│\n` +

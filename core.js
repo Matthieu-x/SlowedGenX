@@ -36,7 +36,6 @@ async function pedirCodigoPairing(
 
     if (intento < MAX_INTENTOS) {
       const espera = 1500 * intento;
-
       await new Promise((r) => setTimeout(r, espera));
 
       await pedirCodigoPairing(
@@ -125,10 +124,6 @@ export async function crearBot({
     onSock(sock);
   }
 
-  // ============================================================
-  // MENSAJES ENVIADOS POR EL PROPIO BOT
-  // ============================================================
-
   const idsPropiosEnviados = new Set();
 
   const enviarOriginal = sock.sendMessage.bind(sock);
@@ -148,10 +143,6 @@ export async function crearBot({
 
     return resultado;
   };
-
-  // ============================================================
-  // CACHE DE GRUPOS
-  // ============================================================
 
   async function actualizarCacheGrupo(chatId) {
     try {
@@ -175,10 +166,6 @@ export async function crearBot({
   sock.groupMetadataCache = groupMetadataCache;
   sock.actualizarCacheGrupo = actualizarCacheGrupo;
 
-  // ============================================================
-  // CONTACTOS
-  // ============================================================
-
   sock.contacts = {};
 
   sock.ev.on("contacts.upsert", (contactos) => {
@@ -197,10 +184,6 @@ export async function crearBot({
     }
   });
 
-  // ============================================================
-  // PAIRING
-  // ============================================================
-
   if (!yaRegistrado && numeroParaPairing && onPairingCode) {
     pedirCodigoPairing(
       sock,
@@ -209,10 +192,6 @@ export async function crearBot({
       etiqueta
     );
   }
-
-  // ============================================================
-  // CONEXIÓN
-  // ============================================================
 
   sock.ev.on("connection.update", (update) => {
     const { connection, lastDisconnect } = update;
@@ -276,13 +255,7 @@ export async function crearBot({
           onLoggedOut();
         }
       }
-    }
-
-    // ==========================================================
-    // CONEXIÓN ABIERTA
-    // ==========================================================
-
-    else if (connection === "open") {
+    } else if (connection === "open") {
       console.log(
         chalk.greenBright(
           `[${etiqueta}] conectada correctamente.`
@@ -309,17 +282,9 @@ export async function crearBot({
     }
   });
 
-  // ============================================================
-  // GUARDAR CREDENCIALES
-  // ============================================================
-
   sock.ev.on("creds.update", () => {
     ultimoGuardado = saveCreds();
   });
-
-  // ============================================================
-  // PARTICIPANTES DE GRUPO
-  // ============================================================
 
   sock.ev.on(
     "group-participants.update",
@@ -345,10 +310,6 @@ export async function crearBot({
       }
     }
   );
-
-  // ============================================================
-  // ACTUALIZACIÓN DE GRUPOS
-  // ============================================================
 
   sock.ev.on("groups.update", async ([event]) => {
     if (!event?.id) return;
@@ -376,10 +337,6 @@ export async function crearBot({
     await actualizarCacheGrupo(event.id);
   });
 
-  // ============================================================
-  // MENSAJES
-  // ============================================================
-
   sock.ev.on(
     "messages.upsert",
     async ({ messages, type }) => {
@@ -389,7 +346,6 @@ export async function crearBot({
 
       if (!msg?.message) return;
 
-      // Ignorar mensajes propios
       if (
         msg.key.fromMe &&
         idsPropiosEnviados.has(msg.key.id)
@@ -397,24 +353,15 @@ export async function crearBot({
         return;
       }
 
-      // ========================================================
-      // IDs ORIGINALES
-      // ========================================================
-
       const chatIdRaw = msg.key.remoteJid;
 
       const senderRaw =
         msg.key.participant ||
         msg.key.remoteJid;
 
-      // ========================================================
-      // RESOLVER LID -> JID
-      // ========================================================
-
       let chatId = chatIdRaw;
       let sender = senderRaw;
 
-      // Resolver chatId solamente si es LID
       if (
         chatIdRaw &&
         chatIdRaw.endsWith("@lid")
@@ -429,7 +376,6 @@ export async function crearBot({
         } catch (_) {}
       }
 
-      // Resolver sender solamente si es LID
       if (
         senderRaw &&
         senderRaw.endsWith("@lid")
@@ -444,10 +390,6 @@ export async function crearBot({
         } catch (_) {}
       }
 
-      // ========================================================
-      // TEXTO DEL MENSAJE
-      // ========================================================
-
       const body =
         msg.message.conversation ||
         msg.message.extendedTextMessage?.text ||
@@ -456,16 +398,8 @@ export async function crearBot({
         extraerRespuestaBoton(msg.message) ||
         "";
 
-      // ========================================================
-      // GRUPO
-      // ========================================================
-
       const esGrupo =
         chatIdRaw?.endsWith("@g.us");
-
-      // ========================================================
-      // LOG
-      // ========================================================
 
       console.log(
         chalk.blueBright(
@@ -476,32 +410,17 @@ export async function crearBot({
         (body || "(mensaje sin texto)")
       );
 
-      // ========================================================
-      // ENVIAR AL CORE
-      // ========================================================
-
       if (onMessage) {
         try {
           await onMessage(sock, msg, {
-            // Chat resuelto
             chatId,
-
-            // Chat original
             chatIdRaw,
 
-            // Usuario resuelto
             sender,
-
-            // Usuario original
             senderRaw,
 
-            // Texto
             body,
-
-            // Grupo
             esGrupo,
-
-            // Subbot
             isSubBot,
           });
         } catch (err) {
@@ -518,13 +437,3 @@ export async function crearBot({
 
   return sock;
 }
-
-Con esto el core recibe los dos valores:
-
-chatIdRaw   // valor original
-chatId      // JID resuelto si era LID
-
-senderRaw   // valor original
-sender      // JID resuelto si era LID
-
-Y además no intentará resolver un grupo "@g.us" como si fuera LID. El cambio clave es que ahora solo se ejecuta "resolveLidToJid()" cuando realmente termina en "@lid".

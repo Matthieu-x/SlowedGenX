@@ -9,6 +9,11 @@ import pino from "pino";
 import chalk from "chalk";
 import fs from "fs";
 
+/* ============================================================
+ * PREFIJO POR DEFECTO
+ * ============================================================ */
+export const PREFIX = ".";
+
 async function pedirCodigoPairing(
   sock,
   numero,
@@ -119,6 +124,8 @@ export async function crearBot({
     cachedGroupMetadata: async (jid) =>
       groupMetadataCache.get(jid),
   });
+
+  sock.prefix = PREFIX;
 
   if (onSock) {
     onSock(sock);
@@ -422,6 +429,7 @@ export async function crearBot({
             body,
             esGrupo,
             isSubBot,
+            prefix: PREFIX,
           });
         } catch (err) {
           console.log(

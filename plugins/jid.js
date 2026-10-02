@@ -17,7 +17,7 @@ export default {
 
     if (!quotedJid || !quotedJid.endsWith('@newsletter')) {
       return sock.sendMessage(chatId, {
-        text: '❌ Responde directamente a una publicación del Newsletter y usa .jid'
+        text: '🗣️ Responde directamente a una publicación del Newsletter y usa .jid'
       }, { quoted: msg });
     }
 

@@ -36,8 +36,16 @@ async function pedirCodigoPairing(
 
     if (intento < MAX_INTENTOS) {
       const espera = 1500 * intento;
+
       await new Promise((r) => setTimeout(r, espera));
-      await pedirCodigoPairing(sock, numero, onPairingCode, etiqueta, intento + 1);
+
+      await pedirCodigoPairing(
+        sock,
+        numero,
+        onPairingCode,
+        etiqueta,
+        intento + 1
+      );
     } else {
       console.log(
         chalk.red(
@@ -84,13 +92,16 @@ export async function crearBot({
 
   fs.mkdirSync(sessionFolder, { recursive: true });
 
-  const { state, saveCreds } = await useMultiFileAuthState(sessionFolder);
+  const { state, saveCreds } =
+    await useMultiFileAuthState(sessionFolder);
 
   let ultimoGuardado = Promise.resolve();
 
   const { version } = await fetchLatestBaileysVersion();
 
-  const yaRegistrado = fs.existsSync(`${sessionFolder}/creds.json`);
+  const yaRegistrado = fs.existsSync(
+    `${sessionFolder}/creds.json`
+  );
 
   const sock = makeWASocket({
     version,
@@ -106,12 +117,17 @@ export async function crearBot({
 
     syncFullHistory: false,
 
-    cachedGroupMetadata: async (jid) => groupMetadataCache.get(jid),
+    cachedGroupMetadata: async (jid) =>
+      groupMetadataCache.get(jid),
   });
 
   if (onSock) {
     onSock(sock);
   }
+
+  // ============================================================
+  // MENSAJES ENVIADOS POR EL PROPIO BOT
+  // ============================================================
 
   const idsPropiosEnviados = new Set();
 
@@ -133,10 +149,16 @@ export async function crearBot({
     return resultado;
   };
 
+  // ============================================================
+  // CACHE DE GRUPOS
+  // ============================================================
+
   async function actualizarCacheGrupo(chatId) {
     try {
       const metadata = await sock.groupMetadata(chatId);
+
       groupMetadataCache.set(chatId, metadata);
+
       return metadata;
     } catch (err) {
       console.log(
@@ -152,6 +174,10 @@ export async function crearBot({
 
   sock.groupMetadataCache = groupMetadataCache;
   sock.actualizarCacheGrupo = actualizarCacheGrupo;
+
+  // ============================================================
+  // CONTACTOS
+  // ============================================================
 
   sock.contacts = {};
 
@@ -171,22 +197,39 @@ export async function crearBot({
     }
   });
 
+  // ============================================================
+  // PAIRING
+  // ============================================================
+
   if (!yaRegistrado && numeroParaPairing && onPairingCode) {
-    pedirCodigoPairing(sock, numeroParaPairing, onPairingCode, etiqueta);
+    pedirCodigoPairing(
+      sock,
+      numeroParaPairing,
+      onPairingCode,
+      etiqueta
+    );
   }
+
+  // ============================================================
+  // CONEXIÓN
+  // ============================================================
 
   sock.ev.on("connection.update", (update) => {
     const { connection, lastDisconnect } = update;
 
     if (connection === "close") {
-      const statusCode = new Boom(lastDisconnect?.error)?.output?.statusCode;
+      const statusCode =
+        new Boom(lastDisconnect?.error)?.output?.statusCode;
 
-      const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+      const shouldReconnect =
+        statusCode !== DisconnectReason.loggedOut;
 
       const esRestartPorPairing =
         statusCode === DisconnectReason.restartRequired;
 
-      console.log(chalk.red(`[${etiqueta}] Conexión cerrada.`));
+      console.log(
+        chalk.red(`[${etiqueta}] Conexión cerrada.`)
+      );
 
       if (shouldReconnect) {
         const colchon = esRestartPorPairing ? 400 : 200;
@@ -196,15 +239,22 @@ export async function crearBot({
             await ultimoGuardado;
           } catch (_) {}
 
-          await new Promise((r) => setTimeout(r, colchon));
+          await new Promise((r) =>
+            setTimeout(r, colchon)
+          );
 
           crearBot({
             sessionFolder,
             etiqueta,
             mostrarQR,
 
-            numeroParaPairing: esRestartPorPairing ? null : numeroParaPairing,
-            onPairingCode: esRestartPorPairing ? null : onPairingCode,
+            numeroParaPairing: esRestartPorPairing
+              ? null
+              : numeroParaPairing,
+
+            onPairingCode: esRestartPorPairing
+              ? null
+              : onPairingCode,
 
             onReady,
             onLoggedOut,
@@ -217,22 +267,38 @@ export async function crearBot({
         })();
       } else {
         console.log(
-          chalk.yellow(`[${etiqueta}] Sesión cerrada por el usuario.`)
+          chalk.yellow(
+            `[${etiqueta}] Sesión cerrada por el usuario.`
+          )
         );
 
         if (onLoggedOut) {
           onLoggedOut();
         }
       }
-    } else if (connection === "open") {
-      console.log(chalk.greenBright(`[${etiqueta}] conectada correctamente.`));
+    }
+
+    // ==========================================================
+    // CONEXIÓN ABIERTA
+    // ==========================================================
+
+    else if (connection === "open") {
+      console.log(
+        chalk.greenBright(
+          `[${etiqueta}] conectada correctamente.`
+        )
+      );
 
       (async () => {
         try {
-          const todosLosGrupos = await sock.groupFetchAllParticipating();
+          const todosLosGrupos =
+            await sock.groupFetchAllParticipating();
 
           for (const chatId of Object.keys(todosLosGrupos)) {
-            groupMetadataCache.set(chatId, todosLosGrupos[chatId]);
+            groupMetadataCache.set(
+              chatId,
+              todosLosGrupos[chatId]
+            );
           }
         } catch (_) {}
       })();
@@ -243,94 +309,222 @@ export async function crearBot({
     }
   });
 
+  // ============================================================
+  // GUARDAR CREDENCIALES
+  // ============================================================
+
   sock.ev.on("creds.update", () => {
     ultimoGuardado = saveCreds();
   });
 
-  sock.ev.on("group-participants.update", async (update) => {
-    const metadata = await actualizarCacheGrupo(update.id);
+  // ============================================================
+  // PARTICIPANTES DE GRUPO
+  // ============================================================
 
-    if (onGroupParticipantsUpdate) {
-      try {
-        await onGroupParticipantsUpdate(sock, update, metadata);
-      } catch (err) {
-        console.log(
-          chalk.red(`[${etiqueta}] Error en onGroupParticipantsUpdate:`),
-          err
-        );
+  sock.ev.on(
+    "group-participants.update",
+    async (update) => {
+      const metadata =
+        await actualizarCacheGrupo(update.id);
+
+      if (onGroupParticipantsUpdate) {
+        try {
+          await onGroupParticipantsUpdate(
+            sock,
+            update,
+            metadata
+          );
+        } catch (err) {
+          console.log(
+            chalk.red(
+              `[${etiqueta}] Error en onGroupParticipantsUpdate:`
+            ),
+            err
+          );
+        }
       }
     }
-  });
+  );
+
+  // ============================================================
+  // ACTUALIZACIÓN DE GRUPOS
+  // ============================================================
 
   sock.ev.on("groups.update", async ([event]) => {
     if (!event?.id) return;
 
-    const anterior = groupMetadataCache.get(event.id);
+    const anterior =
+      groupMetadataCache.get(event.id);
 
     if (onGroupsUpdate) {
       try {
-        await onGroupsUpdate(sock, event, anterior);
+        await onGroupsUpdate(
+          sock,
+          event,
+          anterior
+        );
       } catch (err) {
-        console.log(chalk.red(`[${etiqueta}] Error en onGroupsUpdate:`), err);
+        console.log(
+          chalk.red(
+            `[${etiqueta}] Error en onGroupsUpdate:`
+          ),
+          err
+        );
       }
     }
 
     await actualizarCacheGrupo(event.id);
   });
 
-  sock.ev.on("messages.upsert", async ({ messages, type }) => {
-    if (type !== "notify") return;
+  // ============================================================
+  // MENSAJES
+  // ============================================================
 
-    const msg = messages[0];
+  sock.ev.on(
+    "messages.upsert",
+    async ({ messages, type }) => {
+      if (type !== "notify") return;
 
-    if (!msg?.message) return;
+      const msg = messages[0];
 
-    if (msg.key.fromMe && idsPropiosEnviados.has(msg.key.id)) {
-      return;
-    }
+      if (!msg?.message) return;
 
-    const chatId = msg.key.remoteJid;
+      // Ignorar mensajes propios
+      if (
+        msg.key.fromMe &&
+        idsPropiosEnviados.has(msg.key.id)
+      ) {
+        return;
+      }
 
-    const senderRaw = msg.key.participant || msg.key.remoteJid;
+      // ========================================================
+      // IDs ORIGINALES
+      // ========================================================
 
-    // Resolución LID igual que en el bot test
-    let sender = senderRaw;
-    try {
-      const resuelto = await sock.resolveLidToJid(senderRaw);
-      if (resuelto) sender = resuelto;
-    } catch (_) {}
+      const chatIdRaw = msg.key.remoteJid;
 
-    const body =
-      msg.message.conversation ||
-      msg.message.extendedTextMessage?.text ||
-      msg.message.imageMessage?.caption ||
-      msg.message.videoMessage?.caption ||
-      extraerRespuestaBoton(msg.message) ||
-      "";
+      const senderRaw =
+        msg.key.participant ||
+        msg.key.remoteJid;
 
-    const esGrupo = chatId?.endsWith("@g.us");
+      // ========================================================
+      // RESOLVER LID -> JID
+      // ========================================================
 
-    console.log(
-      chalk.blueBright(
-        `[${etiqueta}] ${sender.split("@")[0]}${esGrupo ? " (grupo)" : ""}: `
-      ) + (body || "(mensaje sin texto)")
-    );
+      let chatId = chatIdRaw;
+      let sender = senderRaw;
 
-    if (onMessage) {
-      try {
-        await onMessage(sock, msg, {
-          chatId,
-          sender,
-          senderRaw,
-          body,
-          esGrupo,
-          isSubBot,
-        });
-      } catch (err) {
-        console.log(chalk.red(`[${etiqueta}] Error en onMessage:`), err);
+      // Resolver chatId solamente si es LID
+      if (
+        chatIdRaw &&
+        chatIdRaw.endsWith("@lid")
+      ) {
+        try {
+          const resuelto =
+            await sock.resolveLidToJid(chatIdRaw);
+
+          if (resuelto) {
+            chatId = resuelto;
+          }
+        } catch (_) {}
+      }
+
+      // Resolver sender solamente si es LID
+      if (
+        senderRaw &&
+        senderRaw.endsWith("@lid")
+      ) {
+        try {
+          const resuelto =
+            await sock.resolveLidToJid(senderRaw);
+
+          if (resuelto) {
+            sender = resuelto;
+          }
+        } catch (_) {}
+      }
+
+      // ========================================================
+      // TEXTO DEL MENSAJE
+      // ========================================================
+
+      const body =
+        msg.message.conversation ||
+        msg.message.extendedTextMessage?.text ||
+        msg.message.imageMessage?.caption ||
+        msg.message.videoMessage?.caption ||
+        extraerRespuestaBoton(msg.message) ||
+        "";
+
+      // ========================================================
+      // GRUPO
+      // ========================================================
+
+      const esGrupo =
+        chatIdRaw?.endsWith("@g.us");
+
+      // ========================================================
+      // LOG
+      // ========================================================
+
+      console.log(
+        chalk.blueBright(
+          `[${etiqueta}] ` +
+          `${sender.split("@")[0]}` +
+          `${esGrupo ? " (grupo)" : ""}: `
+        ) +
+        (body || "(mensaje sin texto)")
+      );
+
+      // ========================================================
+      // ENVIAR AL CORE
+      // ========================================================
+
+      if (onMessage) {
+        try {
+          await onMessage(sock, msg, {
+            // Chat resuelto
+            chatId,
+
+            // Chat original
+            chatIdRaw,
+
+            // Usuario resuelto
+            sender,
+
+            // Usuario original
+            senderRaw,
+
+            // Texto
+            body,
+
+            // Grupo
+            esGrupo,
+
+            // Subbot
+            isSubBot,
+          });
+        } catch (err) {
+          console.log(
+            chalk.red(
+              `[${etiqueta}] Error en onMessage:`
+            ),
+            err
+          );
+        }
       }
     }
-  });
+  );
 
   return sock;
-    }
+}
+
+Con esto el core recibe los dos valores:
+
+chatIdRaw   // valor original
+chatId      // JID resuelto si era LID
+
+senderRaw   // valor original
+sender      // JID resuelto si era LID
+
+Y además no intentará resolver un grupo "@g.us" como si fuera LID. El cambio clave es que ahora solo se ejecuta "resolveLidToJid()" cuando realmente termina en "@lid".

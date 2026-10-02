@@ -21,7 +21,7 @@ export default {
     await sock.sendMessage(
       chatId,
       {
-        text: `Edwar latency 💫 ${latency} ms`
+        text: `Edward latency 💫 ${latency} ms`
       },
       { quoted: sent }
     );

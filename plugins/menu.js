@@ -2,32 +2,15 @@ import fs from "fs";
 import path from "path";
 import { config } from "../config.js";
 
-// ─────────────────────────────────────────────
-// 𖤐 Configuración de categorías
-// ─────────────────────────────────────────────
-
 const CATEGORY_ICONS = [
-  "𖤐",
-  "𖦹",
-  "✦",
-  "✧",
-  "⟡",
-  "⊹",
-  "⋆",
-  "𖥔",
-  "༺",
-  "❖",
-  "⚡",
-  "♢",
-  "☾",
-  "⌁",
-  "◈",
-  "✶",
-  "𖠿",
-  "⛧",
-  "✷",
-  "❂"
+  "𖤐", "𖦹", "✦", "✧", "⟡",
+  "⊹", "⋆", "𖥔", "༺", "❖",
+  "⚡", "♢", "☾", "⌁", "◈",
+  "✶", "𖠿", "⛧", "✷", "❂"
 ];
+
+const CANAL_URL =
+  "https://whatsapp.com/channel/0029VbEWxrVCXC3Dd4eDg71P";
 
 function limpiarCategoria(categoria) {
   return String(categoria || "general")
@@ -36,9 +19,7 @@ function limpiarCategoria(categoria) {
 }
 
 function nombreCategoria(categoria) {
-  const key = limpiarCategoria(categoria);
-
-  return key
+  return limpiarCategoria(categoria)
     .replace(/[-_]+/g, " ")
     .replace(/\s+/g, " ")
     .trim()
@@ -47,7 +28,6 @@ function nombreCategoria(categoria) {
 
 function descripcionCategoria(categoria) {
   const key = limpiarCategoria(categoria);
-
   return `Comandos de ${key.replace(/[-_]+/g, " ")}`;
 }
 
@@ -57,10 +37,6 @@ function iconoCategoria(index) {
   ];
 }
 
-// ─────────────────────────────────────────────
-// 𖤐 Agrupar plugins automáticamente
-// ─────────────────────────────────────────────
-
 function agrupar(plugins) {
   const grupos = new Map();
 
@@ -69,9 +45,7 @@ function agrupar(plugins) {
       continue;
     }
 
-    const categoria = limpiarCategoria(
-      plugin.category
-    );
+    const categoria = limpiarCategoria(plugin.category);
 
     if (!grupos.has(categoria)) {
       grupos.set(categoria, []);
@@ -83,17 +57,12 @@ function agrupar(plugins) {
   return grupos;
 }
 
-// ─────────────────────────────────────────────
-// 𖦹 Render comando
-// ─────────────────────────────────────────────
-
 function renderComando(plugin) {
   const comandos = Array.isArray(plugin.command)
     ? plugin.command
     : [plugin.command];
 
-  const principal =
-    comandos[0] || "sin-comando";
+  const principal = comandos[0] || "sin-comando";
 
   const alias =
     comandos.length > 1
@@ -101,8 +70,7 @@ function renderComando(plugin) {
       : "";
 
   const descripcion =
-    plugin.description ||
-    "Sin descripción";
+    plugin.description || "Sin descripción";
 
   return (
     `│ 𖦹 *.${principal}*${alias}\n` +
@@ -110,23 +78,10 @@ function renderComando(plugin) {
   );
 }
 
-// ─────────────────────────────────────────────
-// ✦ Render sección automática
-// ─────────────────────────────────────────────
-
-function renderSeccion(
-  categoria,
-  plugins,
-  index
-) {
-  const icon =
-    iconoCategoria(index);
-
-  const titulo =
-    nombreCategoria(categoria);
-
-  const descripcion =
-    descripcionCategoria(categoria);
+function renderSeccion(categoria, plugins, index) {
+  const icon = iconoCategoria(index);
+  const titulo = nombreCategoria(categoria);
+  const descripcion = descripcionCategoria(categoria);
 
   const comandos = plugins
     .map(renderComando)
@@ -141,10 +96,6 @@ function renderSeccion(
   );
 }
 
-// ─────────────────────────────────────────────
-// 𖤐 Comando MENU
-// ─────────────────────────────────────────────
-
 export default {
   command: ["menu"],
   category: "main",
@@ -156,7 +107,6 @@ export default {
     args,
     context
   ) => {
-
     const {
       chatId,
       sender,
@@ -164,27 +114,16 @@ export default {
     } = context;
 
     try {
-
-      // ─────────────────────────────────────────
-      // Indicador de escritura
-      // ─────────────────────────────────────────
-
       try {
         await sock.sendPresenceUpdate(
           "composing",
           chatId
         );
 
-        await new Promise(
-          resolve =>
-            setTimeout(resolve, 3000)
+        await new Promise(resolve =>
+          setTimeout(resolve, 3000)
         );
-
       } catch {}
-
-      // ─────────────────────────────────────────
-      // Datos generales
-      // ─────────────────────────────────────────
 
       const pluginsValidos =
         Array.isArray(allPlugins)
@@ -214,17 +153,7 @@ export default {
       const mention =
         "@" + sender.split("@")[0];
 
-      const channelLine =
-        config.canal
-          ? `│ ✦ Canal › *${config.canal}*\n`
-          : "";
-
-      // ─────────────────────────────────────────
-      // 𖤐 HEADER
-      // ─────────────────────────────────────────
-
       const header =
-
         `╭━━━━━━━━━━━━━━━━━━━━━━╮\n` +
         `│\n` +
         `│    𖤐 *${config.botName}* 𖤐\n` +
@@ -244,36 +173,21 @@ export default {
         `│ 𖦹 Tipo › *${tipo}*\n` +
         `│ ✦ Comandos › *${totalComandos}*\n` +
         `│ ✧ Plugins › *${totalPlugins}*\n` +
-        channelLine +
         `╰────────────────────╯\n`;
-
-      // ─────────────────────────────────────────
-      // 𖤐 Categorías automáticas
-      // ─────────────────────────────────────────
 
       const grupos =
         agrupar(pluginsValidos);
 
       let secciones = "";
-
       let indice = 0;
 
-      for (
-        const [categoria, plugins]
-        of grupos
-      ) {
-
+      for (const [categoria, plugins] of grupos) {
         plugins.sort((a, b) => {
-
           const aName =
-            String(
-              a.command?.[0] || ""
-            );
+            String(a.command?.[0] || "");
 
           const bName =
-            String(
-              b.command?.[0] || ""
-            );
+            String(b.command?.[0] || "");
 
           return aName.localeCompare(
             bName,
@@ -282,38 +196,31 @@ export default {
               sensitivity: "base"
             }
           );
-
         });
 
-        secciones +=
-          renderSeccion(
-            categoria,
-            plugins,
-            indice
-          );
+        secciones += renderSeccion(
+          categoria,
+          plugins,
+          indice
+        );
 
         indice++;
       }
 
-      // ─────────────────────────────────────────
-      // ✦ FOOTER
-      // ─────────────────────────────────────────
-
       const footer =
-  `\n` +
-  `╭━━━━━━━━━━━━━━━━━━━━━━╮\n` +
-  `│ 𖤐 *${config.botName}*\n` +
-  `│ 𖦹 Creador › *${config.creator}*\n` + `╰━━━━━━━━━━━━━━━━━━━━━━╯\n` +
-    `\n𖤐 ━━━ ✦ ━━━ 𖤐\n`;
+        `\n` +
+        `╭━━━━━━━━━━━━━━━━━━━━━━╮\n` +
+        `│ 𖤐 *${config.botName}*\n` +
+        `│ 𖦹 Creador › *${config.creator}*\n` +
+        `╰━━━━━━━━━━━━━━━━━━━━━━╯\n\n` +
+        `📢 *CANAL OFICIAL*\n` +
+        `${CANAL_URL}\n\n` +
+        `𖤐 ━━━ ✦ ━━━ 𖤐\n`;
 
       const texto =
         header +
         secciones +
         footer;
-
-      // ─────────────────────────────────────────
-      // Detener indicador
-      // ─────────────────────────────────────────
 
       try {
         await sock.sendPresenceUpdate(
@@ -322,10 +229,6 @@ export default {
         );
       } catch {}
 
-      // ─────────────────────────────────────────
-      // 🖼️ Imagen del menú
-      // ─────────────────────────────────────────
-
       const rutaImagen =
         path.join(
           process.cwd(),
@@ -333,34 +236,23 @@ export default {
           "menu.jpeg"
         );
 
-      if (
-        fs.existsSync(rutaImagen)
-      ) {
-
+      if (fs.existsSync(rutaImagen)) {
         await sock.sendMessage(
           chatId,
           {
-            image:
-              fs.readFileSync(
-                rutaImagen
-              ),
-
+            image: fs.readFileSync(rutaImagen),
             caption: texto,
-
             mentions: [sender]
           },
           {
             quoted: msg
           }
         );
-
       } else {
-
         await sock.sendMessage(
           chatId,
           {
             text: texto,
-
             mentions: [sender]
           },
           {
@@ -370,7 +262,6 @@ export default {
       }
 
     } catch (error) {
-
       console.error(
         "[MENU ERROR]",
         error

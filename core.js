@@ -380,9 +380,550 @@ export async function crearBot({
 
 
   /* ==========================================================
+   * ACTUALIZACIÓN DE CREDENCIALES
+   * ========================================================== */
+
+  sock.ev.on(
+    "creds.update",
+    async () => {
+
+      ultimoGuardado =
+        ultimoGuardado
+          .then(() => saveCreds())
+          .catch((err) => {
+
+            console.log(
+              chalk.red(
+                `[${etiqueta}] Error guardando credenciales:`
+              ),
+              err
+            );
+
+          });
+
+      await ultimoGuardado;
+    }
+  );
+
+
+  /* ==========================================================
    * CONEXIÓN
    * ========================================================== */
 
   sock.ev.on(
     "connection.update",
-    (update)
+    async (update) => {
+
+      const {
+        connection,
+        lastDisconnect,
+      } = update;
+
+
+      /* ------------------------------------------------------
+       * CONEXIÓN ABIERTA
+       * ------------------------------------------------------ */
+
+      if (connection === "open") {
+
+        console.log(
+          chalk.green(
+            `[${etiqueta}] WhatsApp conectado correctamente.`
+          )
+        );
+
+
+        /* ----------------------------------------------------
+         * CARGAR METADATA DE GRUPOS
+         * ---------------------------------------------------- */
+
+        try {
+
+          const grupos =
+            await sock.groupFetchAllParticipating();
+
+
+          for (
+            const [jid, metadata]
+            of Object.entries(grupos)
+          ) {
+
+            groupMetadataCache.set(
+              jid,
+              metadata
+            );
+          }
+
+
+          console.log(
+            chalk.green(
+              `[${etiqueta}] ${Object.keys(grupos).length} grupos cargados en caché.`
+            )
+          );
+
+        } catch (err) {
+
+          console.log(
+            chalk.yellow(
+              `[${etiqueta}] No se pudo cargar la metadata de los grupos:`
+            ),
+            err?.message || err
+          );
+        }
+
+
+        if (onReady) {
+
+          try {
+
+            await onReady(sock);
+
+          } catch (err) {
+
+            console.log(
+              chalk.red(
+                `[${etiqueta}] Error en onReady:`
+              ),
+              err
+            );
+          }
+        }
+
+        return;
+      }
+
+
+      /* ------------------------------------------------------
+       * CONEXIÓN CERRADA
+       * ------------------------------------------------------ */
+
+      if (connection === "close") {
+
+        let statusCode;
+
+        try {
+
+          statusCode =
+            new Boom(
+              lastDisconnect?.error
+            ).output?.statusCode;
+
+        } catch {
+
+          statusCode =
+            undefined;
+        }
+
+
+        console.log(
+          chalk.yellow(
+            `[${etiqueta}] Conexión cerrada. Código: ${statusCode ?? "desconocido"}`
+          )
+        );
+
+
+        /* ----------------------------------------------------
+         * SESIÓN CERRADA / LOGOUT
+         * ---------------------------------------------------- */
+
+        if (
+          statusCode ===
+          DisconnectReason.loggedOut
+        ) {
+
+          console.log(
+            chalk.red(
+              `[${etiqueta}] La sesión fue cerrada. No se reconectará automáticamente.`
+            )
+          );
+
+
+          if (onLoggedOut) {
+
+            try {
+
+              await onLoggedOut();
+
+            } catch (err) {
+
+              console.log(
+                chalk.red(
+                  `[${etiqueta}] Error en onLoggedOut:`
+                ),
+                err
+              );
+            }
+          }
+
+          return;
+        }
+
+
+        /* ----------------------------------------------------
+         * ESPERAR A QUE TERMINE EL GUARDADO
+         * ---------------------------------------------------- */
+
+        try {
+
+          await ultimoGuardado;
+
+        } catch {}
+
+
+        /* ----------------------------------------------------
+         * RECONEXIÓN
+         * ---------------------------------------------------- */
+
+        const espera =
+          statusCode ===
+          DisconnectReason.restartRequired
+            ? 400
+            : 200;
+
+
+        console.log(
+          chalk.cyan(
+            `[${etiqueta}] Reconectando en ${espera}ms...`
+          )
+        );
+
+
+        setTimeout(
+          () => {
+
+            crearBot({
+              sessionFolder,
+
+              etiqueta,
+
+              mostrarQR: false,
+
+              numeroParaPairing: null,
+
+              onPairingCode: null,
+
+              onReady,
+
+              onLoggedOut,
+
+              isSubBot,
+
+              onSock,
+
+              onMessage,
+
+              onGroupParticipantsUpdate,
+
+              onGroupsUpdate,
+
+            }).catch((err) => {
+
+              console.log(
+                chalk.red(
+                  `[${etiqueta}] Error creando nuevo socket:`
+                ),
+                err
+              );
+
+            });
+
+          },
+          espera
+        );
+      }
+    }
+  );
+
+
+  /* ==========================================================
+   * CAMBIOS DE PARTICIPANTES
+   * ========================================================== */
+
+  sock.ev.on(
+    "group-participants.update",
+    async (update) => {
+
+      const metadata =
+        await actualizarCacheGrupo(
+          update.id
+        );
+
+
+      /* ------------------------------------------------------
+       * MANEJAR CAMBIO DE ADMIN
+       * ------------------------------------------------------ */
+
+      try {
+
+        if (typeof manejarCambioAdmin === "function") {
+
+          await manejarCambioAdmin(
+            sock,
+            update,
+            metadata
+          );
+        }
+
+      } catch (err) {
+
+        console.log(
+          chalk.red(
+            `[${etiqueta}] Error en manejarCambioAdmin:`
+          ),
+          err
+        );
+      }
+
+
+      /* ------------------------------------------------------
+       * CALLBACK EXTERNO
+       * ------------------------------------------------------ */
+
+      if (onGroupParticipantsUpdate) {
+
+        try {
+
+          await onGroupParticipantsUpdate(
+            sock,
+            update,
+            metadata
+          );
+
+        } catch (err) {
+
+          console.log(
+            chalk.red(
+              `[${etiqueta}] Error en onGroupParticipantsUpdate:`
+            ),
+            err
+          );
+        }
+      }
+    }
+  );
+
+
+  /* ==========================================================
+   * ACTUALIZACIONES DE GRUPOS
+   * ========================================================== */
+
+  sock.ev.on(
+    "groups.update",
+    async (updates) => {
+
+      for (const event of updates) {
+
+        if (!event?.id) {
+          continue;
+        }
+
+
+        const anterior =
+          groupMetadataCache.get(
+            event.id
+          );
+
+
+        if (onGroupsUpdate) {
+
+          try {
+
+            await onGroupsUpdate(
+              sock,
+              event,
+              anterior
+            );
+
+          } catch (err) {
+
+            console.log(
+              chalk.red(
+                `[${etiqueta}] Error en onGroupsUpdate:`
+              ),
+              err
+            );
+          }
+        }
+
+
+        await actualizarCacheGrupo(
+          event.id
+        );
+      }
+    }
+  );
+
+
+  /* ==========================================================
+   * MENSAJES
+   * ========================================================== */
+
+  sock.ev.on(
+    "messages.upsert",
+    async ({ messages, type }) => {
+
+      if (type !== "notify") {
+        return;
+      }
+
+
+      for (const msg of messages) {
+
+        if (!msg?.message) {
+          continue;
+        }
+
+
+        if (
+          msg.key.fromMe &&
+          idsPropiosEnviados.has(
+            msg.key.id
+          )
+        ) {
+          continue;
+        }
+
+
+        const chatIdRaw =
+          msg.key.remoteJid;
+
+
+        const senderRaw =
+          msg.key.participant ||
+          msg.key.remoteJid;
+
+
+        let chatId =
+          chatIdRaw;
+
+
+        let sender =
+          senderRaw;
+
+
+        /* ----------------------------------------------------
+         * RESOLVER CHAT LID
+         * ---------------------------------------------------- */
+
+        if (
+          chatIdRaw &&
+          chatIdRaw.endsWith("@lid")
+        ) {
+
+          try {
+
+            const resuelto =
+              await sock.resolveLidToJid(
+                chatIdRaw
+              );
+
+
+            if (resuelto) {
+              chatId = resuelto;
+            }
+
+          } catch (_) {}
+        }
+
+
+        /* ----------------------------------------------------
+         * RESOLVER SENDER LID
+         * ---------------------------------------------------- */
+
+        if (
+          senderRaw &&
+          senderRaw.endsWith("@lid")
+        ) {
+
+          try {
+
+            const resuelto =
+              await sock.resolveLidToJid(
+                senderRaw
+              );
+
+
+            if (resuelto) {
+              sender = resuelto;
+            }
+
+          } catch (_) {}
+        }
+
+
+        /* ----------------------------------------------------
+         * TEXTO DEL MENSAJE
+         * ---------------------------------------------------- */
+
+        const body =
+          msg.message.conversation ||
+          msg.message.extendedTextMessage?.text ||
+          msg.message.imageMessage?.caption ||
+          msg.message.videoMessage?.caption ||
+          extraerRespuestaBoton(
+            msg.message
+          ) ||
+          "";
+
+
+        const esGrupo =
+          chatIdRaw?.endsWith("@g.us");
+
+
+        console.log(
+          chalk.blueBright(
+            `[${etiqueta}] ` +
+            `${sender?.split("@")[0] || "desconocido"}` +
+            `${esGrupo ? " (grupo)" : ""}: `
+          ) +
+          (
+            body ||
+            "(mensaje sin texto)"
+          )
+        );
+
+
+        /* ----------------------------------------------------
+         * CALLBACK DE MENSAJES
+         * ---------------------------------------------------- */
+
+        if (onMessage) {
+
+          try {
+
+            await onMessage(
+              sock,
+              msg,
+              {
+                chatId,
+                chatIdRaw,
+
+                sender,
+                senderRaw,
+
+                body,
+                esGrupo,
+
+                isSubBot,
+
+                prefix: PREFIX,
+              }
+            );
+
+          } catch (err) {
+
+            console.log(
+              chalk.red(
+                `[${etiqueta}] Error en onMessage:`
+              ),
+              err
+            );
+          }
+        }
+      }
+    }
+  );
+
+
+  return sock;
+}

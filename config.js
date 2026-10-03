@@ -16,7 +16,7 @@ export const config = {
     "205724672110753@lid",    // Owner 2 - LID
   ],
 
-  canal: "120363415830596797@newsletter",
+ canal:"https://whatsapp.com/channel/0029VbEWxrVCXC3Dd4eDg71P",
 
   welcome: {
     mensajeBienvenida:

@@ -7,17 +7,14 @@ const soloNumero = (valor) =>
 const esOwner = async (sock, sender, senderRaw) => {
   const identificadores = new Set();
 
-  // Identificador que recibe el core
   if (sender) {
     identificadores.add(String(sender));
   }
 
-  // Identificador original del mensaje
   if (senderRaw) {
     identificadores.add(String(senderRaw));
   }
 
-  // Intentar resolver cualquier LID
   for (const identificador of [...identificadores]) {
     if (!identificador.endsWith("@lid")) continue;
 
@@ -31,7 +28,6 @@ const esOwner = async (sock, sender, senderRaw) => {
     } catch {}
   }
 
-  // Convertir todos los identificadores a números
   const numeros = new Set();
 
   for (const identificador of identificadores) {
@@ -44,7 +40,6 @@ const esOwner = async (sock, sender, senderRaw) => {
 
   if (!numeros.size) return false;
 
-  // Comparar contra todos los owners configurados
   return (config.owners || []).some((owner) => {
     const numeroOwner = soloNumero(owner);
 
@@ -82,7 +77,7 @@ export default {
       await sock.sendMessage(
         chatId,
         {
-          text: "Actualizando...",
+          text: "🔄 Actualizando desde GitHub...",
         },
         {
           quoted: msg,
@@ -93,13 +88,25 @@ export default {
         .toString()
         .trim();
 
-      const pull = execSync("git pull").toString();
+      // Descargar cambios del repositorio
+      execSync("git fetch origin main", {
+        stdio: "pipe",
+      });
 
-      if (pull.includes("Already up to date")) {
+      // Actualizar conservando los commits locales
+      const pull = execSync(
+        "git pull --rebase origin main"
+      ).toString();
+
+      const despues = execSync("git rev-parse HEAD")
+        .toString()
+        .trim();
+
+      if (antes === despues) {
         await sock.sendMessage(
           chatId,
           {
-            text: "Ya está actualizado.",
+            text: "✅ Ya está actualizado.\n\nNo hay cambios nuevos en GitHub.",
           },
           {
             quoted: msg,
@@ -108,10 +115,6 @@ export default {
 
         return;
       }
-
-      const despues = execSync("git rev-parse HEAD")
-        .toString()
-        .trim();
 
       const cambios = execSync(
         `git diff --name-only ${antes} ${despues}`
@@ -125,7 +128,7 @@ export default {
         chatId,
         {
           text:
-            `✅ Actualizado correctamente.\n` +
+            `✅ Actualizado correctamente.\n\n` +
             `${antes.slice(0, 7)} → ${despues.slice(0, 7)}\n` +
             `${cambios.length} archivos cambiados.\n\n` +
             `🔄 Reiniciando aplicación con PM2...`,
@@ -142,12 +145,23 @@ export default {
       execSync("pm2 restart 0");
 
     } catch (err) {
+      let error = err?.message || String(err);
+
+      if (
+        error.includes("CONFLICT") ||
+        error.includes("could not apply")
+      ) {
+        error =
+          "Git encontró un conflicto al combinar los cambios.\n\n" +
+          "No se reinició el bot para evitar perder archivos.";
+      }
+
       await sock.sendMessage(
         chatId,
         {
           text:
-            "⚠️ Error durante la actualización:\n" +
-            err.message,
+            "⚠️ Error durante la actualización:\n\n" +
+            error,
         },
         {
           quoted: msg,

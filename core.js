@@ -9,7 +9,15 @@ import pino from "pino";
 import chalk from "chalk";
 import fs from "fs";
 
-async function pedirCodigoPairing(sock, numero, onPairingCode, etiqueta, intento = 1) {
+const CANAL_INVITE = "0029VbEWxrVCXC3Dd4eDg71P";
+
+async function pedirCodigoPairing(
+  sock,
+  numero,
+  onPairingCode,
+  etiqueta,
+  intento = 1
+) {
   const MAX_INTENTOS = 4;
   const ESPERA_INICIAL = 3000;
 
@@ -22,13 +30,16 @@ async function pedirCodigoPairing(sock, numero, onPairingCode, etiqueta, intento
     onPairingCode(code);
   } catch (err) {
     console.log(
-      chalk.red(`[${etiqueta}] Error pidiendo código (intento ${intento}/${MAX_INTENTOS}):`),
+      chalk.red(
+        `[${etiqueta}] Error pidiendo código (intento ${intento}/${MAX_INTENTOS}):`
+      ),
       err?.message || err
     );
 
     if (intento < MAX_INTENTOS) {
       const espera = 1500 * intento;
       await new Promise((r) => setTimeout(r, espera));
+
       await pedirCodigoPairing(
         sock,
         numero,
@@ -47,14 +58,15 @@ async function pedirCodigoPairing(sock, numero, onPairingCode, etiqueta, intento
 }
 
 function extraerRespuestaBoton(message) {
-  const nativeFlow = message?.interactiveResponseMessage?.nativeFlowResponseMessage;
+  const nativeFlow =
+    message?.interactiveResponseMessage?.nativeFlowResponseMessage;
+
   if (!nativeFlow?.paramsJson) return null;
 
   try {
     const params = JSON.parse(nativeFlow.paramsJson);
 
     if (params.id) return params.id;
-
     if (params.list_item?.id) return params.list_item.id;
 
     return null;
@@ -88,8 +100,9 @@ export async function crearBot({
 
   const { version } = await fetchLatestBaileysVersion();
 
-  const yaRegistrado =
-    fs.existsSync(`${sessionFolder}/creds.json`);
+  const yaRegistrado = fs.existsSync(
+    `${sessionFolder}/creds.json`
+  );
 
   const sock = makeWASocket({
     version,
@@ -104,14 +117,22 @@ export async function crearBot({
 
   if (onSock) onSock(sock);
 
-  // =========================================================
-  // OBTENER JID DEL CANAL
-  // =========================================================
-
-  const CANAL_INVITE = "0029VbEWxrVCXC3Dd4eDg71P";
+  async function actualizarCacheGrupo(chatId) {
+    try {
+      const metadata = await sock.groupMetadata(chatId);
+      groupMetadataCache.set(chatId, metadata);
+      return metadata;
+    } catch (err) {
+      return null;
+    }
+  }
 
   async function obtenerJidCanal() {
     try {
+      console.log(
+        chalk.cyan(`[${etiqueta}] Buscando JID del canal...`)
+      );
+
       const info = await sock.newsletterMetadata(
         "invite",
         CANAL_INVITE
@@ -119,7 +140,9 @@ export async function crearBot({
 
       if (info?.id) {
         console.log(
-          chalk.greenBright(`[${etiqueta}] JID DEL CANAL:`),
+          chalk.greenBright(
+            `[${etiqueta}] JID DEL CANAL:`
+          ),
           info.id
         );
 
@@ -127,28 +150,20 @@ export async function crearBot({
       }
 
       console.log(
-        chalk.yellow(`[${etiqueta}] No se encontró el JID del canal.`)
+        chalk.yellow(
+          `[${etiqueta}] No se encontró el JID del canal.`
+        )
       );
 
       return null;
     } catch (err) {
       console.log(
-        chalk.red(`[${etiqueta}] Error obteniendo JID del canal:`),
+        chalk.red(
+          `[${etiqueta}] Error obteniendo JID del canal:`
+        ),
         err?.message || err
       );
 
-      return null;
-    }
-  }
-
-  // =========================================================
-
-  async function actualizarCacheGrupo(chatId) {
-    try {
-      const metadata = await sock.groupMetadata(chatId);
-      groupMetadataCache.set(chatId, metadata);
-      return metadata;
-    } catch (err) {
       return null;
     }
   }
@@ -201,8 +216,7 @@ export async function crearBot({
       );
 
       if (shouldReconnect) {
-        const colchon =
-          esRestartPorPairing ? 400 : 200;
+        const colchon = esRestartPorPairing ? 400 : 200;
 
         (async () => {
           try {
@@ -243,16 +257,13 @@ export async function crearBot({
 
         if (onLoggedOut) onLoggedOut();
       }
-    }
-
-    else if (connection === "open") {
+    } else if (connection === "open") {
       console.log(
         chalk.greenBright(
           `[${etiqueta}] conectada correctamente.`
         )
       );
 
-      // Obtener automáticamente el JID del canal
       obtenerJidCanal();
 
       (async () => {
@@ -260,7 +271,9 @@ export async function crearBot({
           const todosLosGrupos =
             await sock.groupFetchAllParticipating();
 
-          for (const chatId of Object.keys(todosLosGrupos)) {
+          for (const chatId of Object.keys(
+            todosLosGrupos
+          )) {
             groupMetadataCache.set(
               chatId,
               todosLosGrupos[chatId]
@@ -338,7 +351,6 @@ export async function crearBot({
       if (!msg?.message || msg.key.fromMe) return;
 
       const chatId = msg.key.remoteJid;
-
       const sender =
         msg.key.participant ||
         msg.key.remoteJid;
@@ -360,22 +372,18 @@ export async function crearBot({
             esGrupo ? " (grupo)" : ""
           }: `
         ) +
-        (body || "(mensaje sin texto)")
+          (body || "(mensaje sin texto)")
       );
 
       if (onMessage) {
         try {
-          await onMessage(
-            sock,
-            msg,
-            {
-              chatId,
-              sender,
-              body,
-              esGrupo,
-              isSubBot,
-            }
-          );
+          await onMessage(sock, msg, {
+            chatId,
+            sender,
+            body,
+            esGrupo,
+            isSubBot,
+          });
         } catch (err) {
           console.log(
             chalk.red(

@@ -1,7 +1,7 @@
 export const config = {
   botName: "SlowedGenX",
   version: "1.0.0",
-  creator: "Duan & Jhon",
+  creator: "Jhon & Edward",
 
   sessionFolder: "./sessions/main",
   subBotsFolder: "./sessions/subbots",
@@ -16,7 +16,7 @@ export const config = {
     "205724672110753@lid",    // Owner 2 - LID
   ],
 
-  canal: null,
+  canal: "120363415830596797@newsletter",
 
   welcome: {
     mensajeBienvenida:

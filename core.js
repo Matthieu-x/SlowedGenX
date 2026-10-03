@@ -12,16 +12,47 @@ import fs from "fs";
 
 import { manejarCambioAdmin } from "./adminEvents.js";
 
-import {
-  enviarWelcome,
-  enviarBye
-} from "./plugins/welcome.js";
-
 /* ============================================================
  * PREFIJO
  * ============================================================ */
 
 export const PREFIX = ".";
+
+
+/* ============================================================
+ * BASE DE DATOS
+ * ============================================================ */
+
+const DATABASE_FILE = "./database.json";
+
+
+function cargarDatabase() {
+  try {
+    if (!fs.existsSync(DATABASE_FILE)) {
+      return {};
+    }
+
+    const contenido =
+      fs.readFileSync(
+        DATABASE_FILE,
+        "utf8"
+      );
+
+    if (!contenido.trim()) {
+      return {};
+    }
+
+    return JSON.parse(contenido);
+
+  } catch (error) {
+    console.error(
+      "[CORE] Error leyendo database.json:",
+      error
+    );
+
+    return {};
+  }
+}
 
 
 /* ============================================================
@@ -35,7 +66,6 @@ async function pedirCodigoPairing(
   etiqueta,
   intento = 1
 ) {
-
   const MAX_INTENTOS = 4;
   const ESPERA_INICIAL = 3000;
 
@@ -46,7 +76,6 @@ async function pedirCodigoPairing(
   }
 
   try {
-
     const code =
       await sock.requestPairingCode(
         numero.trim()
@@ -125,8 +154,180 @@ function extraerRespuestaBoton(message) {
     return null;
 
   } catch {
-
     return null;
+  }
+}
+
+
+/* ============================================================
+ * PREPARAR MENSAJE DE WELCOME
+ * ============================================================ */
+
+function prepararMensajeWelcome(
+  texto,
+  usuario,
+  metadata
+) {
+
+  const grupo =
+    metadata?.subject ||
+    "este grupo";
+
+  const total =
+    metadata?.participants?.length ||
+    0;
+
+  const desc =
+    metadata?.desc ||
+    "Sin descripción";
+
+  return String(texto || "")
+    .replace(
+      /@user/g,
+      `@${usuario.split("@")[0]}`
+    )
+    .replace(
+      /@grupo/g,
+      grupo
+    )
+    .replace(
+      /@total/g,
+      String(total)
+    )
+    .replace(
+      /@desc/g,
+      desc
+    );
+}
+
+
+/* ============================================================
+ * EVENTO DE BIENVENIDA / DESPEDIDA
+ * ============================================================ */
+
+async function manejarWelcome(
+  sock,
+  update,
+  metadata,
+  etiqueta
+) {
+
+  try {
+
+    const chatId =
+      update?.id;
+
+    const participantes =
+      update?.participants || [];
+
+    const accion =
+      update?.action;
+
+    if (!chatId?.endsWith("@g.us")) {
+      return;
+    }
+
+    if (!participantes.length) {
+      return;
+    }
+
+    if (
+      accion !== "add" &&
+      accion !== "remove"
+    ) {
+      return;
+    }
+
+
+    /* ========================================================
+     * LEER DATABASE
+     * ======================================================== */
+
+    const database =
+      cargarDatabase();
+
+    const config =
+      database?.welcome?.[chatId];
+
+
+    /*
+     * Si el grupo nunca configuró nada,
+     * no enviamos nada.
+     */
+
+    if (!config) {
+      return;
+    }
+
+
+    /*
+     * Si está desactivado tampoco enviamos.
+     */
+
+    if (config.enabled === false) {
+      return;
+    }
+
+
+    /* ========================================================
+     * MENSAJE
+     * ======================================================== */
+
+    const plantilla =
+      accion === "add"
+        ? config.welcomeMessage
+        : config.byeMessage;
+
+
+    if (!plantilla) {
+      return;
+    }
+
+
+    /* ========================================================
+     * ENVIAR A CADA PARTICIPANTE
+     * ======================================================== */
+
+    for (const participante of participantes) {
+
+      const texto =
+        prepararMensajeWelcome(
+          plantilla,
+          participante,
+          metadata
+        );
+
+
+      await sock.sendMessage(
+        chatId,
+        {
+          text,
+          mentions: [
+            participante
+          ]
+        }
+      );
+    }
+
+
+    console.log(
+      chalk.green(
+        `[${etiqueta}] ${
+          accion === "add"
+            ? "WELCOME"
+            : "BYE"
+        } enviado en ${chatId}`
+      )
+    );
+
+  } catch (error) {
+
+    console.log(
+      chalk.red(
+        `[${etiqueta}] Error en welcome:`
+      ),
+      error
+    );
   }
 }
 
@@ -136,36 +337,19 @@ function extraerRespuestaBoton(message) {
  * ============================================================ */
 
 export async function crearBot({
-
   sessionFolder,
-
   etiqueta = "BOT",
-
   mostrarQR = false,
-
   numeroParaPairing = null,
-
   onPairingCode = null,
-
   onReady = null,
-
   onLoggedOut = null,
-
   isSubBot = false,
-
   onSock = null,
-
   onMessage = null,
-
   onGroupParticipantsUpdate = null,
-
   onGroupsUpdate = null,
-
 }) {
-
-  /* ==========================================================
-   * CACHE DE GRUPOS
-   * ========================================================== */
 
   const groupMetadataCache =
     new Map();
@@ -192,10 +376,6 @@ export async function crearBot({
     );
 
 
-  let ultimoGuardado =
-    Promise.resolve();
-
-
   const { version } =
     await fetchLatestBaileysVersion();
 
@@ -212,9 +392,7 @@ export async function crearBot({
 
   const sock =
     makeWASocket({
-
       version,
-
       auth: state,
 
       printQRInTerminal:
@@ -233,7 +411,6 @@ export async function crearBot({
       cachedGroupMetadata:
         async (jid) =>
           groupMetadataCache.get(jid),
-
     });
 
 
@@ -244,6 +421,16 @@ export async function crearBot({
   if (onSock) {
     onSock(sock);
   }
+
+
+  /* ==========================================================
+   * GUARDAR CREDENCIALES
+   * ========================================================== */
+
+  sock.ev.on(
+    "creds.update",
+    saveCreds
+  );
 
 
   /* ==========================================================
@@ -292,9 +479,9 @@ export async function crearBot({
     };
 
 
-  /* ============================================================
+  /* ==========================================================
    * CACHE DE GRUPO
-   * ============================================================ */
+   * ========================================================== */
 
   async function actualizarCacheGrupo(
     chatId
@@ -343,9 +530,9 @@ export async function crearBot({
     actualizarCacheGrupo;
 
 
-  /* ============================================================
+  /* ==========================================================
    * CONTACTOS
-   * ============================================================ */
+   * ========================================================== */
 
   sock.contacts = {};
 
@@ -388,27 +575,9 @@ export async function crearBot({
   );
 
 
-  /* ============================================================
-   * GUARDAR CREDENCIALES
-   * ============================================================ */
-
-  sock.ev.on(
-    "creds.update",
-    async () => {
-
-      ultimoGuardado =
-        ultimoGuardado
-          .then(() => saveCreds())
-          .catch(() => {});
-
-      await ultimoGuardado;
-    }
-  );
-
-
-  /* ============================================================
+  /* ==========================================================
    * PAIRING
-   * ============================================================ */
+   * ========================================================== */
 
   if (
     !yaRegistrado &&
@@ -425,117 +594,115 @@ export async function crearBot({
   }
 
 
-  /* ============================================================
+  /* ==========================================================
    * EVENTOS DE PARTICIPANTES
-   * ============================================================ */
+   * ========================================================== */
 
   sock.ev.on(
     "group-participants.update",
     async (update) => {
 
-      try {
+      const chatId =
+        update?.id;
 
-        const metadata =
-          await actualizarCacheGrupo(
-            update.id
+      if (!chatId?.endsWith("@g.us")) {
+        return;
+      }
+
+
+      console.log(
+        chalk.magenta(
+          `[${etiqueta}] GROUP PARTICIPANTS:`
+        ),
+        update?.action,
+        update?.participants
+      );
+
+
+      const metadata =
+        await actualizarCacheGrupo(
+          chatId
+        );
+
+
+      /*
+       * WELCOME / BYE
+       */
+
+      await manejarWelcome(
+        sock,
+        update,
+        metadata,
+        etiqueta
+      );
+
+
+      /*
+       * CALLBACK EXTERNO
+       */
+
+      if (onGroupParticipantsUpdate) {
+
+        try {
+
+          await onGroupParticipantsUpdate(
+            sock,
+            update,
+            metadata
           );
 
+        } catch (err) {
 
-        /* ======================================================
-         * BIENVENIDA
-         * ====================================================== */
-
-        if (
-          update.action === "add"
-        ) {
-
-          await enviarWelcome(
-            sock,
-            update
+          console.log(
+            chalk.red(
+              `[${etiqueta}] Error en onGroupParticipantsUpdate:`
+            ),
+            err
           );
         }
+      }
 
 
-        /* ======================================================
-         * DESPEDIDA
-         * ====================================================== */
+      /*
+       * EVENTOS DE ADMIN
+       */
 
-        if (
-          update.action === "remove" ||
-          update.action === "leave"
-        ) {
+      if (
+        update.action === "promote" ||
+        update.action === "demote"
+      ) {
 
-          await enviarBye(
-            sock,
-            update
-          );
-        }
-
-
-        /* ======================================================
-         * EVENTOS DE ADMIN
-         * ====================================================== */
-
-        if (
-          update.action === "promote" ||
-          update.action === "demote"
-        ) {
+        try {
 
           await manejarCambioAdmin(
             sock,
             update,
             metadata
           );
+
+        } catch (err) {
+
+          console.log(
+            chalk.red(
+              `[${etiqueta}] Error en adminEvents:`
+            ),
+            err
+          );
         }
-
-
-        /* ======================================================
-         * CALLBACK EXTERNO
-         * ====================================================== */
-
-        if (onGroupParticipantsUpdate) {
-
-          try {
-
-            await onGroupParticipantsUpdate(
-              sock,
-              update,
-              metadata
-            );
-
-          } catch (err) {
-
-            console.log(
-              chalk.red(
-                `[${etiqueta}] Error en onGroupParticipantsUpdate:`
-              ),
-              err
-            );
-          }
-        }
-
-      } catch (err) {
-
-        console.log(
-          chalk.red(
-            `[${etiqueta}] Error en group-participants.update:`
-          ),
-          err
-        );
       }
     }
   );
 
 
-  /* ============================================================
+  /* ==========================================================
    * ACTUALIZACIÓN DE GRUPOS
-   * ============================================================ */
+   * ========================================================== */
 
   sock.ev.on(
     "groups.update",
-    async (updates) => {
+    async (eventos) => {
 
-      for (const event of updates || []) {
+      for (const event of eventos || []) {
 
         if (!event?.id) {
           continue;
@@ -578,16 +745,13 @@ export async function crearBot({
   );
 
 
-  /* ============================================================
+  /* ==========================================================
    * MENSAJES
-   * ============================================================ */
+   * ========================================================== */
 
   sock.ev.on(
     "messages.upsert",
-    async ({
-      messages,
-      type
-    }) => {
+    async ({ messages, type }) => {
 
       if (type !== "notify") {
         return;
@@ -595,7 +759,7 @@ export async function crearBot({
 
 
       const msg =
-        messages?.[0];
+        messages[0];
 
 
       if (!msg?.message) {
@@ -603,9 +767,9 @@ export async function crearBot({
       }
 
 
-      /* ========================================================
-       * IGNORAR MENSAJES PROPIOS
-       * ======================================================== */
+      /*
+       * Ignorar mensajes propios
+       */
 
       if (
         msg.key.fromMe &&
@@ -635,9 +799,9 @@ export async function crearBot({
         senderRaw;
 
 
-      /* ========================================================
+      /* ======================================================
        * RESOLVER LID DEL CHAT
-       * ======================================================== */
+       * ====================================================== */
 
       if (
         chatIdRaw &&
@@ -651,7 +815,6 @@ export async function crearBot({
               chatIdRaw
             );
 
-
           if (resuelto) {
             chatId = resuelto;
           }
@@ -660,9 +823,9 @@ export async function crearBot({
       }
 
 
-      /* ========================================================
+      /* ======================================================
        * RESOLVER LID DEL USUARIO
-       * ======================================================== */
+       * ====================================================== */
 
       if (
         senderRaw &&
@@ -676,7 +839,6 @@ export async function crearBot({
               senderRaw
             );
 
-
           if (resuelto) {
             sender = resuelto;
           }
@@ -685,51 +847,33 @@ export async function crearBot({
       }
 
 
-      /* ========================================================
-       * OBTENER TEXTO
-       * ======================================================== */
+      /* ======================================================
+       * TEXTO
+       * ====================================================== */
 
       const body =
-
         msg.message.conversation ||
-
         msg.message.extendedTextMessage?.text ||
-
         msg.message.imageMessage?.caption ||
-
         msg.message.videoMessage?.caption ||
-
         extraerRespuestaBoton(
           msg.message
         ) ||
-
         "";
 
 
-      /* ========================================================
-       * GRUPO
-       * ======================================================== */
-
       const esGrupo =
-        chatIdRaw?.endsWith("@g.us");
+        chatIdRaw?.endsWith(
+          "@g.us"
+        );
 
-
-      /* ========================================================
-       * LOG
-       * ======================================================== */
 
       console.log(
-
         chalk.blueBright(
-
           `[${etiqueta}] ` +
-
-          `${sender?.split("@")[0] || "desconocido"}` +
-
+          `${sender?.split("@")[0] || "?"}` +
           `${esGrupo ? " (grupo)" : ""}: `
-
         ) +
-
         (
           body ||
           "(mensaje sin texto)"
@@ -737,9 +881,9 @@ export async function crearBot({
       );
 
 
-      /* ========================================================
-       * CALLBACK DE MENSAJE
-       * ======================================================== */
+      /* ======================================================
+       * ON MESSAGE
+       * ====================================================== */
 
       if (onMessage) {
 
@@ -750,17 +894,13 @@ export async function crearBot({
             msg,
             {
               chatId,
-
               chatIdRaw,
 
               sender,
-
               senderRaw,
 
               body,
-
               esGrupo,
-
               isSubBot,
 
               prefix: PREFIX,
@@ -781,9 +921,9 @@ export async function crearBot({
   );
 
 
-  /* ============================================================
+  /* ==========================================================
    * CONEXIÓN
-   * ============================================================ */
+   * ========================================================== */
 
   sock.ev.on(
     "connection.update",
@@ -795,15 +935,13 @@ export async function crearBot({
       } = update;
 
 
-      /* ========================================================
-       * CONECTADO
-       * ======================================================== */
-
-      if (connection === "open") {
+      if (
+        connection === "open"
+      ) {
 
         console.log(
-          chalk.greenBright(
-            `[${etiqueta}] ✓ Conectado correctamente.`
+          chalk.green(
+            `[${etiqueta}] WhatsApp conectado.`
           )
         );
 
@@ -811,7 +949,6 @@ export async function crearBot({
         if (onReady) {
 
           try {
-
             await onReady(
               sock
             );
@@ -829,37 +966,31 @@ export async function crearBot({
       }
 
 
-      /* ========================================================
-       * DESCONECTADO
-       * ======================================================== */
+      if (
+        connection === "close"
+      ) {
 
-      if (connection === "close") {
-
-        const codigo =
+        const statusCode =
           new Boom(
             lastDisconnect?.error
           )?.output?.statusCode;
 
 
         console.log(
-          chalk.red(
-            `[${etiqueta}] ✗ Conexión cerrada. Código: ${codigo}`
+          chalk.yellow(
+            `[${etiqueta}] Conexión cerrada. Código: ${statusCode}`
           )
         );
 
 
-        /* ======================================================
-         * SESIÓN CERRADA
-         * ====================================================== */
-
         if (
-          codigo ===
+          statusCode ===
           DisconnectReason.loggedOut
         ) {
 
           console.log(
             chalk.red(
-              `[${etiqueta}] La sesión fue cerrada.`
+              `[${etiqueta}] Sesión cerrada.`
             )
           );
 
@@ -867,10 +998,7 @@ export async function crearBot({
           if (onLoggedOut) {
 
             try {
-
-              await onLoggedOut(
-                sock
-              );
+              await onLoggedOut();
 
             } catch (err) {
 
@@ -883,27 +1011,14 @@ export async function crearBot({
             }
           }
 
+        } else {
 
-          return;
+          console.log(
+            chalk.yellow(
+              `[${etiqueta}] Intentando reconectar...`
+            )
+          );
         }
-
-
-        /* ======================================================
-         * OTROS ERRORES
-         * ====================================================== */
-
-        console.log(
-          chalk.yellow(
-            `[${etiqueta}] La conexión se cerró.`
-          )
-        );
-
-
-        console.log(
-          chalk.yellow(
-            `[${etiqueta}] El sistema externo puede volver a crear el socket.`
-          )
-        );
       }
     }
   );

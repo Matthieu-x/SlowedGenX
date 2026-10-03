@@ -20,7 +20,7 @@ export const PREFIX = ".";
 
 
 /* ============================================================
- * PEDIR CÓDIGO DE PAIRING
+ * PAIRING
  * ============================================================ */
 
 async function pedirCodigoPairing(
@@ -59,7 +59,8 @@ async function pedirCodigoPairing(
 
     if (intento < MAX_INTENTOS) {
 
-      const espera = 1500 * intento;
+      const espera =
+        1500 * intento;
 
       await new Promise((r) =>
         setTimeout(r, espera)
@@ -77,9 +78,7 @@ async function pedirCodigoPairing(
 
       console.log(
         chalk.red(
-          `[${etiqueta}] Se agotaron los intentos ` +
-          `para pedir el código de vinculación. ` +
-          `Probá desde otra red.`
+          `[${etiqueta}] Se agotaron los intentos para pedir el código de vinculación. Probá desde otra red.`
         )
       );
     }
@@ -104,7 +103,9 @@ function extraerRespuestaBoton(message) {
   try {
 
     const params =
-      JSON.parse(nativeFlow.paramsJson);
+      JSON.parse(
+        nativeFlow.paramsJson
+      );
 
     if (params.id) {
       return params.id;
@@ -127,36 +128,19 @@ function extraerRespuestaBoton(message) {
  * ============================================================ */
 
 export async function crearBot({
-
   sessionFolder,
-
   etiqueta = "BOT",
-
   mostrarQR = false,
-
   numeroParaPairing = null,
-
   onPairingCode = null,
-
   onReady = null,
-
   onLoggedOut = null,
-
   isSubBot = false,
-
   onSock = null,
-
   onMessage = null,
-
   onGroupParticipantsUpdate = null,
-
   onGroupsUpdate = null,
-
 }) {
-
-  /* ==========================================================
-   * CACHE DE GRUPOS
-   * ========================================================== */
 
   const groupMetadataCache =
     new Map();
@@ -164,7 +148,9 @@ export async function crearBot({
 
   fs.mkdirSync(
     sessionFolder,
-    { recursive: true }
+    {
+      recursive: true
+    }
   );
 
 
@@ -185,10 +171,6 @@ export async function crearBot({
     Promise.resolve();
 
 
-  /* ==========================================================
-   * VERSIÓN BAILEYS
-   * ========================================================== */
-
   const { version } =
     await fetchLatestBaileysVersion();
 
@@ -200,14 +182,12 @@ export async function crearBot({
 
 
   /* ==========================================================
-   * CREAR SOCKET
+   * SOCKET
    * ========================================================== */
 
   const sock =
     makeWASocket({
-
       version,
-
       auth: state,
 
       printQRInTerminal:
@@ -226,17 +206,12 @@ export async function crearBot({
       cachedGroupMetadata:
         async (jid) =>
           groupMetadataCache.get(jid),
-
     });
 
 
   sock.prefix =
     PREFIX;
 
-
-  /* ==========================================================
-   * ON SOCK
-   * ========================================================== */
 
   if (onSock) {
     onSock(sock);
@@ -259,7 +234,9 @@ export async function crearBot({
     async (...params) => {
 
       const resultado =
-        await enviarOriginal(...params);
+        await enviarOriginal(
+          ...params
+        );
 
 
       if (resultado?.key?.id) {
@@ -288,7 +265,7 @@ export async function crearBot({
 
 
   /* ==========================================================
-   * ACTUALIZAR CACHE DEL GRUPO
+   * CACHE DE GRUPO
    * ========================================================== */
 
   async function actualizarCacheGrupo(
@@ -315,8 +292,7 @@ export async function crearBot({
 
       console.log(
         chalk.red(
-          `[${etiqueta}] Error obteniendo metadata ` +
-          `de grupo ${chatId}:`
+          `[${etiqueta}] Error obteniendo metadata de grupo ${chatId}:`
         ),
         err.message
       );
@@ -409,506 +385,4 @@ export async function crearBot({
 
   sock.ev.on(
     "connection.update",
-    (update) => {
-
-      const {
-        connection,
-        lastDisconnect
-      } = update;
-
-
-      if (
-        connection === "close"
-      ) {
-
-        const statusCode =
-          new Boom(
-            lastDisconnect?.error
-          )?.output?.statusCode;
-
-
-        const shouldReconnect =
-          statusCode !==
-          DisconnectReason.loggedOut;
-
-
-        const esRestartPorPairing =
-          statusCode ===
-          DisconnectReason.restartRequired;
-
-
-        console.log(
-          chalk.red(
-            `[${etiqueta}] Conexión cerrada.`
-          )
-        );
-
-
-        if (shouldReconnect) {
-
-          const colchon =
-            esRestartPorPairing
-              ? 400
-              : 200;
-
-
-          (async () => {
-
-            try {
-
-              await ultimoGuardado;
-
-            } catch (_) {}
-
-
-            await new Promise(
-              (r) =>
-                setTimeout(
-                  r,
-                  colchon
-                )
-            );
-
-
-            crearBot({
-
-              sessionFolder,
-
-              etiqueta,
-
-              mostrarQR,
-
-              numeroParaPairing:
-                esRestartPorPairing
-                  ? null
-                  : numeroParaPairing,
-
-              onPairingCode:
-                esRestartPorPairing
-                  ? null
-                  : onPairingCode,
-
-              onReady,
-
-              onLoggedOut,
-
-              isSubBot,
-
-              onSock,
-
-              onMessage,
-
-              onGroupParticipantsUpdate,
-
-              onGroupsUpdate,
-
-            });
-
-          })();
-
-        } else {
-
-          console.log(
-            chalk.yellow(
-              `[${etiqueta}] Sesión cerrada por el usuario.`
-            )
-          );
-
-
-          if (onLoggedOut) {
-            onLoggedOut();
-          }
-        }
-
-
-      } else if (
-        connection === "open"
-      ) {
-
-        console.log(
-          chalk.greenBright(
-            `[${etiqueta}] conectada correctamente.`
-          )
-        );
-
-
-        /* ======================================================
-         * CARGAR GRUPOS
-         * ====================================================== */
-
-        (async () => {
-
-          try {
-
-            const todosLosGrupos =
-              await sock.groupFetchAllParticipating();
-
-
-            for (
-              const chatId
-              of Object.keys(
-                todosLosGrupos
-              )
-            ) {
-
-              groupMetadataCache.set(
-                chatId,
-                todosLosGrupos[chatId]
-              );
-            }
-
-          } catch (_) {}
-
-        })();
-
-
-        if (onReady) {
-          onReady(sock);
-        }
-      }
-    }
-  );
-
-
-  /* ==========================================================
-   * GUARDAR CREDENCIALES
-   * ========================================================== */
-
-  sock.ev.on(
-    "creds.update",
-    () => {
-
-      ultimoGuardado =
-        saveCreds();
-    }
-  );
-
-
-  /* ==========================================================
-   * EVENTOS DE PARTICIPANTES
-   * ========================================================== */
-
-  sock.ev.on(
-    "group-participants.update",
-    async (update) => {
-
-      const metadata =
-        await actualizarCacheGrupo(
-          update.id
-        );
-
-
-      /* ======================================================
-       * EVENTO AUTOMÁTICO DE ADMIN
-       * ====================================================== */
-
-      try {
-
-        await manejarCambioAdmin(
-          sock,
-          update,
-          metadata
-        );
-
-      } catch (err) {
-
-        console.log(
-          chalk.red(
-            `[${etiqueta}] Error en eventos de admin:`
-          ),
-          err
-        );
-      }
-
-
-      /* ======================================================
-       * EVENTOS DEL SISTEMA DEL BOT
-       * ====================================================== */
-
-      if (
-        onGroupParticipantsUpdate
-      ) {
-
-        try {
-
-          await onGroupParticipantsUpdate(
-            sock,
-            update,
-            metadata
-          );
-
-        } catch (err) {
-
-          console.log(
-            chalk.red(
-              `[${etiqueta}] Error en ` +
-              `onGroupParticipantsUpdate:`
-            ),
-            err
-          );
-        }
-      }
-    }
-  );
-
-
-  /* ==========================================================
-   * ACTUALIZACIONES DEL GRUPO
-   * ========================================================== */
-
-  sock.ev.on(
-    "groups.update",
-    async ([event]) => {
-
-      if (!event?.id) {
-        return;
-      }
-
-
-      const anterior =
-        groupMetadataCache.get(
-          event.id
-        );
-
-
-      if (onGroupsUpdate) {
-
-        try {
-
-          await onGroupsUpdate(
-            sock,
-            event,
-            anterior
-          );
-
-        } catch (err) {
-
-          console.log(
-            chalk.red(
-              `[${etiqueta}] Error en onGroupsUpdate:`
-            ),
-            err
-          );
-        }
-      }
-
-
-      await actualizarCacheGrupo(
-        event.id
-      );
-    }
-  );
-
-
-  /* ==========================================================
-   * MENSAJES
-   * ========================================================== */
-
-  sock.ev.on(
-    "messages.upsert",
-    async ({
-      messages,
-      type
-    }) => {
-
-      if (
-        type !== "notify"
-      ) {
-        return;
-      }
-
-
-      const msg =
-        messages[0];
-
-
-      if (!msg?.message) {
-        return;
-      }
-
-
-      if (
-        msg.key.fromMe &&
-        idsPropiosEnviados.has(
-          msg.key.id
-        )
-      ) {
-
-        return;
-      }
-
-
-      const chatIdRaw =
-        msg.key.remoteJid;
-
-
-      const senderRaw =
-        msg.key.participant ||
-        msg.key.remoteJid;
-
-
-      let chatId =
-        chatIdRaw;
-
-
-      let sender =
-        senderRaw;
-
-
-      /* ======================================================
-       * RESOLVER CHAT LID
-       * ====================================================== */
-
-      if (
-        chatIdRaw &&
-        chatIdRaw.endsWith("@lid")
-      ) {
-
-        try {
-
-          const resuelto =
-            await sock.resolveLidToJid(
-              chatIdRaw
-            );
-
-
-          if (resuelto) {
-            chatId =
-              resuelto;
-          }
-
-        } catch (_) {}
-      }
-
-
-      /* ======================================================
-       * RESOLVER SENDER LID
-       * ====================================================== */
-
-      if (
-        senderRaw &&
-        senderRaw.endsWith("@lid")
-      ) {
-
-        try {
-
-          const resuelto =
-            await sock.resolveLidToJid(
-              senderRaw
-            );
-
-
-          if (resuelto) {
-            sender =
-              resuelto;
-          }
-
-        } catch (_) {}
-      }
-
-
-      /* ======================================================
-       * OBTENER TEXTO
-       * ====================================================== */
-
-      const body =
-
-        msg.message.conversation ||
-
-        msg.message
-          .extendedTextMessage
-          ?.text ||
-
-        msg.message
-          .imageMessage
-          ?.caption ||
-
-        msg.message
-          .videoMessage
-          ?.caption ||
-
-        extraerRespuestaBoton(
-          msg.message
-        ) ||
-
-        "";
-
-
-      const esGrupo =
-        chatIdRaw?.endsWith(
-          "@g.us"
-        );
-
-
-      /* ======================================================
-       * LOG
-       * ====================================================== */
-
-      console.log(
-
-        chalk.blueBright(
-
-          `[${etiqueta}] ` +
-
-          `${sender.split("@")[0]}` +
-
-          `${esGrupo ? " (grupo)" : ""}: `
-
-        ) +
-
-        (
-          body ||
-          "(mensaje sin texto)"
-        )
-      );
-
-
-      /* ======================================================
-       * ON MESSAGE
-       * ====================================================== */
-
-      if (onMessage) {
-
-        try {
-
-          await onMessage(
-            sock,
-            msg,
-            {
-
-              chatId,
-
-              chatIdRaw,
-
-              sender,
-
-              senderRaw,
-
-              body,
-
-              esGrupo,
-
-              isSubBot,
-
-              prefix:
-                PREFIX,
-
-            }
-          );
-
-        } catch (err) {
-
-          console.log(
-            chalk.red(
-              `[${etiqueta}] Error en onMessage:`
-            ),
-            err
-          );
-        }
-      }
-    }
-  );
-
-
-  return sock;
-}
+    (update)

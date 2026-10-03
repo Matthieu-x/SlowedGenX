@@ -1,6 +1,167 @@
 import { areJidsSameUser } from '@whiskeysockets/baileys';
+import fs from 'fs';
+
+const DATABASE_FILE = './database.json';
+
+const BIENVENIDA_DEFAULT =
+  '╭─〔 🫧 BIENVENIDO/A 〕─╮\n\n' +
+  '👤 @user\n' +
+  '🫧 Bienvenido/a a @grupo\n\n' +
+  '👥 Miembros: @total\n\n' +
+  '📜 @desc\n\n' +
+  '╰────────────────╯';
+
+const DESPEDIDA_DEFAULT =
+  '╭─〔 🫧 DESPEDIDA 〕─╮\n\n' +
+  '👤 @user\n' +
+  'ha salido de @grupo.\n\n' +
+  '👥 Miembros restantes: @total\n\n' +
+  '╰────────────────╯';
+
+
+/* ============================================================
+ * BASE DE DATOS
+ * ============================================================ */
+
+function cargarDatabase() {
+  try {
+    if (!fs.existsSync(DATABASE_FILE)) {
+      return {};
+    }
+
+    const contenido =
+      fs.readFileSync(
+        DATABASE_FILE,
+        'utf8'
+      );
+
+    if (!contenido.trim()) {
+      return {};
+    }
+
+    return JSON.parse(contenido);
+
+  } catch (error) {
+
+    console.error(
+      '[WELCOME] Error leyendo database.json:',
+      error
+    );
+
+    return {};
+  }
+}
+
+
+function guardarDatabase(database) {
+  fs.writeFileSync(
+    DATABASE_FILE,
+    JSON.stringify(
+      database,
+      null,
+      2
+    )
+  );
+}
+
+
+/* ============================================================
+ * CONFIGURACIÓN DEL GRUPO
+ * ============================================================ */
+
+function obtenerConfig(chatId) {
+
+  const database =
+    cargarDatabase();
+
+  if (!database.welcome) {
+    database.welcome = {};
+  }
+
+  if (!database.welcome[chatId]) {
+
+    database.welcome[chatId] = {
+      enabled: true,
+      welcomeMessage: BIENVENIDA_DEFAULT,
+      byeMessage: DESPEDIDA_DEFAULT
+    };
+
+    guardarDatabase(database);
+  }
+
+  return {
+    database,
+    config: database.welcome[chatId]
+  };
+}
+
+
+/* ============================================================
+ * REEMPLAZAR VARIABLES
+ * ============================================================ */
+
+function prepararMensaje(
+  texto,
+  usuario,
+  metadata
+) {
+
+  const grupo =
+    metadata?.subject ||
+    'este grupo';
+
+  const total =
+    metadata?.participants?.length ||
+    0;
+
+  const desc =
+    metadata?.desc ||
+    'Sin descripción';
+
+  return texto
+    .replace(
+      /@user/g,
+      `@${usuario.split('@')[0]}`
+    )
+    .replace(
+      /@grupo/g,
+      grupo
+    )
+    .replace(
+      /@total/g,
+      String(total)
+    )
+    .replace(
+      /@desc/g,
+      desc
+    );
+}
+
+
+/* ============================================================
+ * OBTENER CUERPO ORIGINAL
+ * ============================================================ */
+
+function obtenerTexto(msg, context) {
+
+  if (context?.body) {
+    return context.body.trim();
+  }
+
+  return (
+    msg?.message?.conversation ||
+    msg?.message?.extendedTextMessage?.text ||
+    ''
+  ).trim();
+}
+
+
+/* ============================================================
+ * CREAR PLUGIN
+ * ============================================================ */
 
 export default {
+
   command: [
     'welcome',
     'setwelcome',
@@ -9,87 +170,164 @@ export default {
     'resetbye',
     'verwelcome'
   ],
+
   category: 'group',
-  description: 'Configura las bienvenidas y despedidas del grupo',
 
-  run: async (sock, msg, args, context) => {
-    const { chatId } = context;
+  description:
+    'Configura las bienvenidas y despedidas del grupo',
 
-    // =========================
-    // SOLO GRUPOS
-    // =========================
+
+  run: async (
+    sock,
+    msg,
+    args,
+    context
+  ) => {
+
+    const {
+      chatId
+    } = context;
+
+
+    /* ========================================================
+     * SOLO GRUPOS
+     * ======================================================== */
+
     if (!chatId?.endsWith('@g.us')) {
+
       return sock.sendMessage(
         chatId,
         {
-          text: '🫧 Este comando solo puede usarse en grupos.'
+          text:
+            '🫧 Este comando solo puede usarse en grupos.'
         },
-        { quoted: msg }
+        {
+          quoted: msg
+        }
       );
     }
 
-    try {
-      // =========================
-      // OBTENER INFORMACIÓN
-      // =========================
-      const metadata = await sock.groupMetadata(chatId);
-      const participants = metadata.participants || [];
 
-      // =========================
-      // IDENTIFICAR USUARIO
-      // =========================
+    try {
+
+      /* ======================================================
+       * OBTENER METADATA
+       * ====================================================== */
+
+      const metadata =
+        await sock.groupMetadata(
+          chatId
+        );
+
+      const participants =
+        metadata.participants || [];
+
+
+      /* ======================================================
+       * IDENTIFICAR USUARIO
+       * ====================================================== */
+
       const senderId =
         msg.key.participant ||
         msg.participant ||
         msg.key.remoteJid;
 
-      const sender = participants.find(p =>
-        p.id && senderId && areJidsSameUser(p.id, senderId)
-      );
 
-      // =========================
-      // VERIFICAR ADMIN
-      // =========================
-      if (!sender || !['admin', 'superadmin'].includes(sender.admin)) {
+      const sender =
+        participants.find(
+          p =>
+            p.id &&
+            senderId &&
+            areJidsSameUser(
+              p.id,
+              senderId
+            )
+        );
+
+
+      /* ======================================================
+       * VERIFICAR ADMIN
+       * ====================================================== */
+
+      if (
+        !sender ||
+        ![
+          'admin',
+          'superadmin'
+        ].includes(sender.admin)
+      ) {
+
         return sock.sendMessage(
           chatId,
           {
-            text: '❌ Solo los administradores pueden configurar las bienvenidas.'
+            text:
+              '❌ Solo los administradores pueden configurar las bienvenidas.'
           },
-          { quoted: msg }
+          {
+            quoted: msg
+          }
         );
       }
 
-      // =========================
-      // CONFIGURACIÓN
-      // =========================
-      // Cambia estas variables por tu sistema
-      const config = {
-        welcome: true,
-        welcomeMessage:
-          '╭─〔 🫧 BIENVENIDO/A 〕─╮\n\n' +
-          '👤 @user\n' +
-          '🫧 Bienvenido/a a @grupo\n\n' +
-          '👥 Miembros: @total\n\n' +
-          '📜 @desc\n\n' +
-          '╰────────────────╯',
 
-        byeMessage:
-          '╭─〔 🫧 DESPEDIDA 〕─╮\n\n' +
-          '👤 @user\n' +
-          'ha salido de @grupo.\n\n' +
-          '👥 Miembros restantes: @total\n\n' +
-          '╰────────────────╯'
-      };
+      /* ======================================================
+       * OBTENER CONFIGURACIÓN
+       * ====================================================== */
 
-      const command = (args?.[0] || '').toLowerCase();
-      const message = args?.slice(1).join(' ').trim();
+      const {
+        database,
+        config
+      } =
+        obtenerConfig(
+          chatId
+        );
 
-      // =========================
-      // .WELCOME
-      // =========================
-      if (command === 'on') {
-        config.welcome = true;
+
+      /* ======================================================
+       * IDENTIFICAR COMANDO REAL
+       * ====================================================== */
+
+      const texto =
+        obtenerTexto(
+          msg,
+          context
+        );
+
+
+      const partes =
+        texto.split(/\s+/);
+
+      const comando =
+        (partes[0] || '')
+          .replace(
+            /^\./,
+            ''
+          )
+          .toLowerCase();
+
+
+      const mensaje =
+        partes
+          .slice(1)
+          .join(' ')
+          .trim();
+
+
+      /* ======================================================
+       * .WELCOME ON
+       * ====================================================== */
+
+      if (
+        comando === 'welcome' &&
+        mensaje.toLowerCase() === 'on'
+      ) {
+
+        config.enabled =
+          true;
+
+        guardarDatabase(
+          database
+        );
 
         return sock.sendMessage(
           chatId,
@@ -98,12 +336,28 @@ export default {
               '🫧 *BIENVENIDAS ACTIVADAS*\n\n' +
               '✅ El sistema de bienvenida está activado.'
           },
-          { quoted: msg }
+          {
+            quoted: msg
+          }
         );
       }
 
-      if (command === 'off') {
-        config.welcome = false;
+
+      /* ======================================================
+       * .WELCOME OFF
+       * ====================================================== */
+
+      if (
+        comando === 'welcome' &&
+        mensaje.toLowerCase() === 'off'
+      ) {
+
+        config.enabled =
+          false;
+
+        guardarDatabase(
+          database
+        );
 
         return sock.sendMessage(
           chatId,
@@ -112,15 +366,52 @@ export default {
               '🫧 *BIENVENIDAS DESACTIVADAS*\n\n' +
               '❌ El sistema de bienvenida está desactivado.'
           },
-          { quoted: msg }
+          {
+            quoted: msg
+          }
         );
       }
 
-      // =========================
-      // .SETWELCOME
-      // =========================
-      if (['setwelcome', 'setbienvenida'].includes(command)) {
-        if (!message) {
+
+      /* ======================================================
+       * .WELCOME
+       * ====================================================== */
+
+      if (
+        comando === 'welcome'
+      ) {
+
+        return sock.sendMessage(
+          chatId,
+          {
+            text:
+              'ꕥ *CONFIGURACIÓN DE BIENVENIDAS*\n\n' +
+              'Usa:\n\n' +
+              '♡ .welcome on\n' +
+              '♡ .welcome off\n' +
+              '♡ .setwelcome <mensaje>\n' +
+              '♡ .setbye <mensaje>\n' +
+              '♡ .resetwelcome\n' +
+              '♡ .resetbye\n' +
+              '♡ .verwelcome'
+          },
+          {
+            quoted: msg
+          }
+        );
+      }
+
+
+      /* ======================================================
+       * .SETWELCOME
+       * ====================================================== */
+
+      if (
+        comando === 'setwelcome'
+      ) {
+
+        if (!mensaje) {
+
           return sock.sendMessage(
             chatId,
             {
@@ -129,28 +420,45 @@ export default {
                 'Ejemplo:\n' +
                 '.setwelcome 🫧 Bienvenido @user a @grupo'
             },
-            { quoted: msg }
+            {
+              quoted: msg
+            }
           );
         }
 
-        config.welcomeMessage = message;
+
+        config.welcomeMessage =
+          mensaje;
+
+        guardarDatabase(
+          database
+        );
+
 
         return sock.sendMessage(
           chatId,
           {
             text:
               '✅ *BIENVENIDA ACTUALIZADA*\n\n' +
-              'El nuevo mensaje de bienvenida ha sido configurado.'
+              'El nuevo mensaje de bienvenida fue guardado correctamente.'
           },
-          { quoted: msg }
+          {
+            quoted: msg
+          }
         );
       }
 
-      // =========================
-      // .SETBYE
-      // =========================
-      if (['setbye', 'setdespedida'].includes(command)) {
-        if (!message) {
+
+      /* ======================================================
+       * .SETBYE
+       * ====================================================== */
+
+      if (
+        comando === 'setbye'
+      ) {
+
+        if (!mensaje) {
+
           return sock.sendMessage(
             chatId,
             {
@@ -159,135 +467,180 @@ export default {
                 'Ejemplo:\n' +
                 '.setbye 👋 @user salió de @grupo'
             },
-            { quoted: msg }
+            {
+              quoted: msg
+            }
           );
         }
 
-        config.byeMessage = message;
+
+        config.byeMessage =
+          mensaje;
+
+        guardarDatabase(
+          database
+        );
+
 
         return sock.sendMessage(
           chatId,
           {
             text:
               '✅ *DESPEDIDA ACTUALIZADA*\n\n' +
-              'El nuevo mensaje de despedida ha sido configurado.'
+              'El nuevo mensaje de despedida fue guardado correctamente.'
           },
-          { quoted: msg }
+          {
+            quoted: msg
+          }
         );
       }
 
-      // =========================
-      // .RESETWELCOME
-      // =========================
-      if (command === 'resetwelcome') {
+
+      /* ======================================================
+       * .RESETWELCOME
+       * ====================================================== */
+
+      if (
+        comando === 'resetwelcome'
+      ) {
+
         config.welcomeMessage =
-          '╭─〔 🫧 BIENVENIDO/A 〕─╮\n\n' +
-          '👤 @user\n' +
-          '🫧 Bienvenido/a a @grupo\n\n' +
-          '👥 Miembros: @total\n\n' +
-          '📜 @desc\n\n' +
-          '╰────────────────╯';
+          BIENVENIDA_DEFAULT;
 
-        return sock.sendMessage(
-          chatId,
-          {
-            text: '♻️ Mensaje de bienvenida restaurado correctamente.'
-          },
-          { quoted: msg }
+        guardarDatabase(
+          database
         );
-      }
 
-      // =========================
-      // .RESETBYE
-      // =========================
-      if (command === 'resetbye') {
-        config.byeMessage =
-          '╭─〔 🫧 DESPEDIDA 〕─╮\n\n' +
-          '👤 @user\n' +
-          'ha salido de @grupo.\n\n' +
-          '👥 Miembros restantes: @total\n\n' +
-          '╰────────────────╯';
 
-        return sock.sendMessage(
-          chatId,
-          {
-            text: '♻️ Mensaje de despedida restaurado correctamente.'
-          },
-          { quoted: msg }
-        );
-      }
-
-      // =========================
-      // .VERWELCOME
-      // =========================
-      if (command === 'verwelcome') {
         return sock.sendMessage(
           chatId,
           {
             text:
-              `ꕥ *CONFIGURACIÓN DE BIENVENIDAS*\n\n` +
-
-              `〄 *Estado actual:*\n` +
-              `> Bienvenidas: *${config.welcome ? 'Activado' : 'Desactivado'}*\n` +
-              `> Mensaje bienvenida:\n` +
-              `_${config.welcomeMessage}_\n\n` +
-
-              `> Mensaje despedida:\n` +
-              `_${config.byeMessage}_\n\n` +
-
-              `✐ *Comandos disponibles:*\n\n` +
-              `> *.welcome on* — Activar bienvenidas\n` +
-              `> *.welcome off* — Desactivar bienvenidas\n\n` +
-
-              `> *.setwelcome <mensaje>* — Configurar bienvenida\n` +
-              `> *.setbye <mensaje>* — Configurar despedida\n\n` +
-
-              `> *.resetwelcome* — Restaurar bienvenida\n` +
-              `> *.resetbye* — Restaurar despedida\n\n` +
-
-              `> *.verwelcome* — Ver configuración completa\n\n` +
-
-              `〄 *Variables disponibles:*\n` +
-              `> *@user* — Menciona al usuario\n` +
-              `> *@grupo* — Nombre del grupo\n` +
-              `> *@total* — Total de miembros\n` +
-              `> *@desc* — Descripción del grupo`
+              '♻️ Mensaje de bienvenida restaurado correctamente.'
           },
-          { quoted: msg }
+          {
+            quoted: msg
+          }
         );
       }
 
-      // =========================
-      // AYUDA
-      // =========================
+
+      /* ======================================================
+       * .RESETBYE
+       * ====================================================== */
+
+      if (
+        comando === 'resetbye'
+      ) {
+
+        config.byeMessage =
+          DESPEDIDA_DEFAULT;
+
+        guardarDatabase(
+          database
+        );
+
+
+        return sock.sendMessage(
+          chatId,
+          {
+            text:
+              '♻️ Mensaje de despedida restaurado correctamente.'
+          },
+          {
+            quoted: msg
+          }
+        );
+      }
+
+
+      /* ======================================================
+       * .VERWELCOME
+       * ====================================================== */
+
+      if (
+        comando === 'verwelcome'
+      ) {
+
+        return sock.sendMessage(
+          chatId,
+          {
+            text:
+
+              `ꕥ *CONFIGURACIÓN DE BIENVENIDAS*\n\n` +
+
+              `〄 *Estado actual:*\n` +
+
+              `> Bienvenidas: *${
+                config.enabled
+                  ? 'Activado'
+                  : 'Desactivado'
+              }*\n\n` +
+
+              `> *Mensaje de bienvenida:*\n` +
+              `${config.welcomeMessage}\n\n` +
+
+              `> *Mensaje de despedida:*\n` +
+              `${config.byeMessage}\n\n` +
+
+              `✐ *Comandos disponibles:*\n\n` +
+
+              `> *.welcome on* — Activar\n` +
+              `> *.welcome off* — Desactivar\n` +
+              `> *.setwelcome <mensaje>*\n` +
+              `> *.setbye <mensaje>*\n` +
+              `> *.resetwelcome*\n` +
+              `> *.resetbye*\n` +
+              `> *.verwelcome*\n\n` +
+
+              `〄 *Variables disponibles:*\n` +
+              `> *@user* — Usuario\n` +
+              `> *@grupo* — Nombre del grupo\n` +
+              `> *@total* — Miembros\n` +
+              `> *@desc* — Descripción`
+          },
+          {
+            quoted: msg
+          }
+        );
+      }
+
+
+      /* ======================================================
+       * COMANDO NO RECONOCIDO
+       * ====================================================== */
+
       return sock.sendMessage(
         chatId,
         {
           text:
-            `ꕥ *CONFIGURACIÓN DE BIENVENIDAS*\n\n` +
-            `Usa:\n\n` +
-            `• .welcome on\n` +
-            `• .welcome off\n` +
-            `• .setwelcome <mensaje>\n` +
-            `• .setbye <mensaje>\n` +
-            `• .resetwelcome\n` +
-            `• .resetbye\n` +
-            `• .verwelcome`
+            '❌ Comando de bienvenida no reconocido.\n\n' +
+            'Usa *.verwelcome* para ver los comandos disponibles.'
         },
-        { quoted: msg }
+        {
+          quoted: msg
+        }
       );
 
+
     } catch (error) {
-      console.error('[WELCOME ERROR]', error);
+
+      console.error(
+        '[WELCOME ERROR]',
+        error
+      );
+
 
       return sock.sendMessage(
         chatId,
         {
           text:
-            `❌ Ocurrió un error al configurar las bienvenidas.\n\n` +
+            '❌ Ocurrió un error al configurar las bienvenidas.\n\n' +
             `> ${error?.message || error}`
         },
-        { quoted: msg }
+        {
+          quoted: msg
+        }
       );
     }
   }

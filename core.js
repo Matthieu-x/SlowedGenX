@@ -9,18 +9,7 @@ import pino from "pino";
 import chalk from "chalk";
 import fs from "fs";
 
-/* ============================================================
- * PREFIJO POR DEFECTO
- * ============================================================ */
-export const PREFIX = ".";
-
-async function pedirCodigoPairing(
-  sock,
-  numero,
-  onPairingCode,
-  etiqueta,
-  intento = 1
-) {
+async function pedirCodigoPairing(sock, numero, onPairingCode, etiqueta, intento = 1) {
   const MAX_INTENTOS = 4;
   const ESPERA_INICIAL = 3000;
 
@@ -33,16 +22,13 @@ async function pedirCodigoPairing(
     onPairingCode(code);
   } catch (err) {
     console.log(
-      chalk.red(
-        `[${etiqueta}] Error pidiendo código (intento ${intento}/${MAX_INTENTOS}):`
-      ),
+      chalk.red(`[${etiqueta}] Error pidiendo código (intento ${intento}/${MAX_INTENTOS}):`),
       err?.message || err
     );
 
     if (intento < MAX_INTENTOS) {
       const espera = 1500 * intento;
       await new Promise((r) => setTimeout(r, espera));
-
       await pedirCodigoPairing(
         sock,
         numero,
@@ -61,19 +47,18 @@ async function pedirCodigoPairing(
 }
 
 function extraerRespuestaBoton(message) {
-  const nativeFlow =
-    message?.interactiveResponseMessage?.nativeFlowResponseMessage;
-
+  const nativeFlow = message?.interactiveResponseMessage?.nativeFlowResponseMessage;
   if (!nativeFlow?.paramsJson) return null;
 
   try {
     const params = JSON.parse(nativeFlow.paramsJson);
 
     if (params.id) return params.id;
+
     if (params.list_item?.id) return params.list_item.id;
 
     return null;
-  } catch {
+  } catch (err) {
     return null;
   }
 }
@@ -103,70 +88,68 @@ export async function crearBot({
 
   const { version } = await fetchLatestBaileysVersion();
 
-  const yaRegistrado = fs.existsSync(
-    `${sessionFolder}/creds.json`
-  );
+  const yaRegistrado =
+    fs.existsSync(`${sessionFolder}/creds.json`);
 
   const sock = makeWASocket({
     version,
     auth: state,
-
     printQRInTerminal: mostrarQR && !yaRegistrado,
-
     browser: Browsers.ubuntu("Chrome"),
-
-    logger: pino({
-      level: "silent",
-    }),
-
+    logger: pino({ level: "silent" }),
     syncFullHistory: false,
-
     cachedGroupMetadata: async (jid) =>
       groupMetadataCache.get(jid),
   });
 
-  sock.prefix = PREFIX;
+  if (onSock) onSock(sock);
 
-  if (onSock) {
-    onSock(sock);
+  // =========================================================
+  // OBTENER JID DEL CANAL
+  // =========================================================
+
+  const CANAL_INVITE = "0029VbEWxrVCXC3Dd4eDg71P";
+
+  async function obtenerJidCanal() {
+    try {
+      const info = await sock.newsletterMetadata(
+        "invite",
+        CANAL_INVITE
+      );
+
+      if (info?.id) {
+        console.log(
+          chalk.greenBright(`[${etiqueta}] JID DEL CANAL:`),
+          info.id
+        );
+
+        return info.id;
+      }
+
+      console.log(
+        chalk.yellow(`[${etiqueta}] No se encontró el JID del canal.`)
+      );
+
+      return null;
+    } catch (err) {
+      console.log(
+        chalk.red(`[${etiqueta}] Error obteniendo JID del canal:`),
+        err?.message || err
+      );
+
+      return null;
+    }
   }
 
-  const idsPropiosEnviados = new Set();
-
-  const enviarOriginal = sock.sendMessage.bind(sock);
-
-  sock.sendMessage = async (...params) => {
-    const resultado = await enviarOriginal(...params);
-
-    if (resultado?.key?.id) {
-      idsPropiosEnviados.add(resultado.key.id);
-
-      if (idsPropiosEnviados.size > 500) {
-        idsPropiosEnviados.delete(
-          idsPropiosEnviados.values().next().value
-        );
-      }
-    }
-
-    return resultado;
-  };
+  // =========================================================
 
   async function actualizarCacheGrupo(chatId) {
     try {
       const metadata = await sock.groupMetadata(chatId);
-
       groupMetadataCache.set(chatId, metadata);
-
       return metadata;
     } catch (err) {
-      console.log(
-        chalk.red(
-          `[${etiqueta}] Error obteniendo metadata de grupo ${chatId}:`
-        ),
-        err.message
-      );
-
-      return groupMetadataCache.get(chatId) || null;
+      return null;
     }
   }
 
@@ -218,7 +201,8 @@ export async function crearBot({
       );
 
       if (shouldReconnect) {
-        const colchon = esRestartPorPairing ? 400 : 200;
+        const colchon =
+          esRestartPorPairing ? 400 : 200;
 
         (async () => {
           try {
@@ -233,15 +217,14 @@ export async function crearBot({
             sessionFolder,
             etiqueta,
             mostrarQR,
-
-            numeroParaPairing: esRestartPorPairing
-              ? null
-              : numeroParaPairing,
-
-            onPairingCode: esRestartPorPairing
-              ? null
-              : onPairingCode,
-
+            numeroParaPairing:
+              esRestartPorPairing
+                ? null
+                : numeroParaPairing,
+            onPairingCode:
+              esRestartPorPairing
+                ? null
+                : onPairingCode,
             onReady,
             onLoggedOut,
             isSubBot,
@@ -258,16 +241,19 @@ export async function crearBot({
           )
         );
 
-        if (onLoggedOut) {
-          onLoggedOut();
-        }
+        if (onLoggedOut) onLoggedOut();
       }
-    } else if (connection === "open") {
+    }
+
+    else if (connection === "open") {
       console.log(
         chalk.greenBright(
           `[${etiqueta}] conectada correctamente.`
         )
       );
+
+      // Obtener automáticamente el JID del canal
+      obtenerJidCanal();
 
       (async () => {
         try {
@@ -283,9 +269,7 @@ export async function crearBot({
         } catch (_) {}
       })();
 
-      if (onReady) {
-        onReady(sock);
-      }
+      if (onReady) onReady(sock);
     }
   });
 
@@ -351,51 +335,13 @@ export async function crearBot({
 
       const msg = messages[0];
 
-      if (!msg?.message) return;
+      if (!msg?.message || msg.key.fromMe) return;
 
-      if (
-        msg.key.fromMe &&
-        idsPropiosEnviados.has(msg.key.id)
-      ) {
-        return;
-      }
+      const chatId = msg.key.remoteJid;
 
-      const chatIdRaw = msg.key.remoteJid;
-
-      const senderRaw =
+      const sender =
         msg.key.participant ||
         msg.key.remoteJid;
-
-      let chatId = chatIdRaw;
-      let sender = senderRaw;
-
-      if (
-        chatIdRaw &&
-        chatIdRaw.endsWith("@lid")
-      ) {
-        try {
-          const resuelto =
-            await sock.resolveLidToJid(chatIdRaw);
-
-          if (resuelto) {
-            chatId = resuelto;
-          }
-        } catch (_) {}
-      }
-
-      if (
-        senderRaw &&
-        senderRaw.endsWith("@lid")
-      ) {
-        try {
-          const resuelto =
-            await sock.resolveLidToJid(senderRaw);
-
-          if (resuelto) {
-            sender = resuelto;
-          }
-        } catch (_) {}
-      }
 
       const body =
         msg.message.conversation ||
@@ -406,31 +352,30 @@ export async function crearBot({
         "";
 
       const esGrupo =
-        chatIdRaw?.endsWith("@g.us");
+        chatId?.endsWith("@g.us");
 
       console.log(
         chalk.blueBright(
-          `[${etiqueta}] ` +
-          `${sender.split("@")[0]}` +
-          `${esGrupo ? " (grupo)" : ""}: `
+          `[${etiqueta}] ${sender.split("@")[0]}${
+            esGrupo ? " (grupo)" : ""
+          }: `
         ) +
         (body || "(mensaje sin texto)")
       );
 
       if (onMessage) {
         try {
-          await onMessage(sock, msg, {
-            chatId,
-            chatIdRaw,
-
-            sender,
-            senderRaw,
-
-            body,
-            esGrupo,
-            isSubBot,
-            prefix: PREFIX,
-          });
+          await onMessage(
+            sock,
+            msg,
+            {
+              chatId,
+              sender,
+              body,
+              esGrupo,
+              isSubBot,
+            }
+          );
         } catch (err) {
           console.log(
             chalk.red(

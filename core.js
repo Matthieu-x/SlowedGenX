@@ -25,18 +25,16 @@ export const PREFIX = ".";
 
 const DATABASE_FILE = "./database.json";
 
-
 function cargarDatabase() {
   try {
     if (!fs.existsSync(DATABASE_FILE)) {
       return {};
     }
 
-    const contenido =
-      fs.readFileSync(
-        DATABASE_FILE,
-        "utf8"
-      );
+    const contenido = fs.readFileSync(
+      DATABASE_FILE,
+      "utf8"
+    );
 
     if (!contenido.trim()) {
       return {};
@@ -56,78 +54,10 @@ function cargarDatabase() {
 
 
 /* ============================================================
- * PAIRING
- * ============================================================ */
-
-async function pedirCodigoPairing(
-  sock,
-  numero,
-  onPairingCode,
-  etiqueta,
-  intento = 1
-) {
-  const MAX_INTENTOS = 4;
-  const ESPERA_INICIAL = 3000;
-
-  if (intento === 1) {
-    await new Promise((r) =>
-      setTimeout(r, ESPERA_INICIAL)
-    );
-  }
-
-  try {
-    const code =
-      await sock.requestPairingCode(
-        numero.trim()
-      );
-
-    onPairingCode(code);
-
-  } catch (err) {
-
-    console.log(
-      chalk.red(
-        `[${etiqueta}] Error pidiendo código ` +
-        `(intento ${intento}/${MAX_INTENTOS}):`
-      ),
-      err?.message || err
-    );
-
-    if (intento < MAX_INTENTOS) {
-
-      const espera =
-        1500 * intento;
-
-      await new Promise((r) =>
-        setTimeout(r, espera)
-      );
-
-      await pedirCodigoPairing(
-        sock,
-        numero,
-        onPairingCode,
-        etiqueta,
-        intento + 1
-      );
-
-    } else {
-
-      console.log(
-        chalk.red(
-          `[${etiqueta}] Se agotaron los intentos para pedir el código de vinculación.`
-        )
-      );
-    }
-  }
-}
-
-
-/* ============================================================
  * BOTONES
  * ============================================================ */
 
 function extraerRespuestaBoton(message) {
-
   const nativeFlow =
     message?.interactiveResponseMessage
       ?.nativeFlowResponseMessage;
@@ -137,11 +67,9 @@ function extraerRespuestaBoton(message) {
   }
 
   try {
-
-    const params =
-      JSON.parse(
-        nativeFlow.paramsJson
-      );
+    const params = JSON.parse(
+      nativeFlow.paramsJson
+    );
 
     if (params.id) {
       return params.id;
@@ -160,7 +88,7 @@ function extraerRespuestaBoton(message) {
 
 
 /* ============================================================
- * PREPARAR MENSAJE DE WELCOME
+ * PREPARAR MENSAJE WELCOME
  * ============================================================ */
 
 function prepararMensajeWelcome(
@@ -168,7 +96,6 @@ function prepararMensajeWelcome(
   usuario,
   metadata
 ) {
-
   const grupo =
     metadata?.subject ||
     "este grupo";
@@ -202,7 +129,7 @@ function prepararMensajeWelcome(
 
 
 /* ============================================================
- * EVENTO DE BIENVENIDA / DESPEDIDA
+ * WELCOME / BYE
  * ============================================================ */
 
 async function manejarWelcome(
@@ -211,9 +138,7 @@ async function manejarWelcome(
   metadata,
   etiqueta
 ) {
-
   try {
-
     const chatId =
       update?.id;
 
@@ -238,58 +163,30 @@ async function manejarWelcome(
       return;
     }
 
-
-    /* ========================================================
-     * LEER DATABASE
-     * ======================================================== */
-
     const database =
       cargarDatabase();
 
     const config =
       database?.welcome?.[chatId];
 
-
-    /*
-     * Si el grupo nunca configuró nada,
-     * no enviamos nada.
-     */
-
     if (!config) {
       return;
     }
 
-
-    /*
-     * Si está desactivado tampoco enviamos.
-     */
-
     if (config.enabled === false) {
       return;
     }
-
-
-    /* ========================================================
-     * MENSAJE
-     * ======================================================== */
 
     const plantilla =
       accion === "add"
         ? config.welcomeMessage
         : config.byeMessage;
 
-
     if (!plantilla) {
       return;
     }
 
-
-    /* ========================================================
-     * ENVIAR A CADA PARTICIPANTE
-     * ======================================================== */
-
     for (const participante of participantes) {
-
       const texto =
         prepararMensajeWelcome(
           plantilla,
@@ -297,18 +194,16 @@ async function manejarWelcome(
           metadata
         );
 
-
       await sock.sendMessage(
         chatId,
         {
-          text,
+          text: texto,
           mentions: [
             participante
           ]
         }
       );
     }
-
 
     console.log(
       chalk.green(
@@ -321,7 +216,6 @@ async function manejarWelcome(
     );
 
   } catch (error) {
-
     console.log(
       chalk.red(
         `[${etiqueta}] Error en welcome:`
@@ -354,7 +248,6 @@ export async function crearBot({
   const groupMetadataCache =
     new Map();
 
-
   fs.mkdirSync(
     sessionFolder,
     {
@@ -370,10 +263,9 @@ export async function crearBot({
   const {
     state,
     saveCreds
-  } =
-    await useMultiFileAuthState(
-      sessionFolder
-    );
+  } = await useMultiFileAuthState(
+    sessionFolder
+  );
 
 
   const { version } =
@@ -393,6 +285,7 @@ export async function crearBot({
   const sock =
     makeWASocket({
       version,
+
       auth: state,
 
       printQRInTerminal:
@@ -403,7 +296,7 @@ export async function crearBot({
 
       logger:
         pino({
-          level: "silent",
+          level: "silent"
         }),
 
       syncFullHistory: false,
@@ -440,10 +333,8 @@ export async function crearBot({
   const idsPropiosEnviados =
     new Set();
 
-
   const enviarOriginal =
     sock.sendMessage.bind(sock);
-
 
   sock.sendMessage =
     async (...params) => {
@@ -453,40 +344,40 @@ export async function crearBot({
           ...params
         );
 
-
       if (resultado?.key?.id) {
 
         idsPropiosEnviados.add(
           resultado.key.id
         );
 
-
         if (
           idsPropiosEnviados.size > 500
         ) {
-
-          idsPropiosEnviados.delete(
+          const primero =
             idsPropiosEnviados
               .values()
               .next()
-              .value
-          );
+              .value;
+
+          if (primero) {
+            idsPropiosEnviados.delete(
+              primero
+            );
+          }
         }
       }
-
 
       return resultado;
     };
 
 
   /* ==========================================================
-   * CACHE DE GRUPO
+   * CACHE DE GRUPOS
    * ========================================================== */
 
   async function actualizarCacheGrupo(
     chatId
   ) {
-
     try {
 
       const metadata =
@@ -494,12 +385,10 @@ export async function crearBot({
           chatId
         );
 
-
       groupMetadataCache.set(
         chatId,
         metadata
       );
-
 
       return metadata;
 
@@ -511,7 +400,6 @@ export async function crearBot({
         ),
         err?.message || err
       );
-
 
       return (
         groupMetadataCache.get(
@@ -525,7 +413,6 @@ export async function crearBot({
   sock.groupMetadataCache =
     groupMetadataCache;
 
-
   sock.actualizarCacheGrupo =
     actualizarCacheGrupo;
 
@@ -536,15 +423,16 @@ export async function crearBot({
 
   sock.contacts = {};
 
-
   sock.ev.on(
     "contacts.upsert",
     (contactos) => {
 
-      for (const c of contactos) {
-
-        sock.contacts[c.id] =
-          c;
+      for (const contacto of contactos) {
+        if (contacto?.id) {
+          sock.contacts[
+            contacto.id
+          ] = contacto;
+        }
       }
     }
   );
@@ -554,21 +442,33 @@ export async function crearBot({
     "contacts.update",
     (actualizaciones) => {
 
-      for (const act of actualizaciones) {
+      for (
+        const actualizacion
+        of actualizaciones
+      ) {
+
+        if (!actualizacion?.id) {
+          continue;
+        }
 
         if (
-          sock.contacts[act.id]
+          sock.contacts[
+            actualizacion.id
+          ]
         ) {
 
           Object.assign(
-            sock.contacts[act.id],
-            act
+            sock.contacts[
+              actualizacion.id
+            ],
+            actualizacion
           );
 
         } else {
 
-          sock.contacts[act.id] =
-            act;
+          sock.contacts[
+            actualizacion.id
+          ] = actualizacion;
         }
       }
     }
@@ -576,22 +476,14 @@ export async function crearBot({
 
 
   /* ==========================================================
-   * PAIRING
+   * ESTADO DEL PAIRING
    * ========================================================== */
 
-  if (
-    !yaRegistrado &&
-    numeroParaPairing &&
-    onPairingCode
-  ) {
+  let pairingSolicitado =
+    false;
 
-    pedirCodigoPairing(
-      sock,
-      numeroParaPairing,
-      onPairingCode,
-      etiqueta
-    );
-  }
+  let pairingEnProceso =
+    false;
 
 
   /* ==========================================================
@@ -609,7 +501,6 @@ export async function crearBot({
         return;
       }
 
-
       console.log(
         chalk.magenta(
           `[${etiqueta}] GROUP PARTICIPANTS:`
@@ -618,16 +509,13 @@ export async function crearBot({
         update?.participants
       );
 
-
       const metadata =
         await actualizarCacheGrupo(
           chatId
         );
 
 
-      /*
-       * WELCOME / BYE
-       */
+      /* WELCOME / BYE */
 
       await manejarWelcome(
         sock,
@@ -637,9 +525,7 @@ export async function crearBot({
       );
 
 
-      /*
-       * CALLBACK EXTERNO
-       */
+      /* CALLBACK */
 
       if (onGroupParticipantsUpdate) {
 
@@ -663,9 +549,7 @@ export async function crearBot({
       }
 
 
-      /*
-       * EVENTOS DE ADMIN
-       */
+      /* ADMIN */
 
       if (
         update.action === "promote" ||
@@ -702,16 +586,18 @@ export async function crearBot({
     "groups.update",
     async (eventos) => {
 
-      for (const event of eventos || []) {
+      for (
+        const evento
+        of eventos || []
+      ) {
 
-        if (!event?.id) {
+        if (!evento?.id) {
           continue;
         }
 
-
         const anterior =
           groupMetadataCache.get(
-            event.id
+            evento.id
           );
 
 
@@ -721,7 +607,7 @@ export async function crearBot({
 
             await onGroupsUpdate(
               sock,
-              event,
+              evento,
               anterior
             );
 
@@ -738,7 +624,7 @@ export async function crearBot({
 
 
         await actualizarCacheGrupo(
-          event.id
+          evento.id
         );
       }
     }
@@ -757,19 +643,15 @@ export async function crearBot({
         return;
       }
 
-
       const msg =
-        messages[0];
-
+        messages?.[0];
 
       if (!msg?.message) {
         return;
       }
 
 
-      /*
-       * Ignorar mensajes propios
-       */
+      /* Ignorar mensajes propios */
 
       if (
         msg.key.fromMe &&
@@ -777,14 +659,12 @@ export async function crearBot({
           msg.key.id
         )
       ) {
-
         return;
       }
 
 
       const chatIdRaw =
         msg.key.remoteJid;
-
 
       const senderRaw =
         msg.key.participant ||
@@ -794,13 +674,12 @@ export async function crearBot({
       let chatId =
         chatIdRaw;
 
-
       let sender =
         senderRaw;
 
 
       /* ======================================================
-       * RESOLVER LID DEL CHAT
+       * RESOLVER LID CHAT
        * ====================================================== */
 
       if (
@@ -824,7 +703,7 @@ export async function crearBot({
 
 
       /* ======================================================
-       * RESOLVER LID DEL USUARIO
+       * RESOLVER LID USUARIO
        * ====================================================== */
 
       if (
@@ -900,6 +779,7 @@ export async function crearBot({
               senderRaw,
 
               body,
+
               esGrupo,
               isSubBot,
 
@@ -935,6 +815,78 @@ export async function crearBot({
       } = update;
 
 
+      /* ========================================================
+       * SOLICITAR PAIRING CUANDO BAILEYS YA ESTÁ CONECTANDO
+       * ======================================================== */
+
+      if (
+        connection === "connecting" &&
+        !yaRegistrado &&
+        numeroParaPairing &&
+        onPairingCode &&
+        !pairingSolicitado &&
+        !pairingEnProceso
+      ) {
+
+        pairingEnProceso = true;
+
+        console.log(
+          chalk.cyan(
+            `[${etiqueta}] Conexión iniciada. Preparando código de vinculación...`
+          )
+        );
+
+
+        try {
+
+          /*
+           * Damos tiempo a que el WebSocket
+           * termine de establecerse.
+           */
+
+          await new Promise(
+            (resolve) =>
+              setTimeout(
+                resolve,
+                3000
+              )
+          );
+
+
+          const code =
+            await sock.requestPairingCode(
+              numeroParaPairing.trim()
+            );
+
+
+          pairingSolicitado =
+            true;
+
+
+          onPairingCode(code);
+
+
+        } catch (err) {
+
+          console.log(
+            chalk.red(
+              `[${etiqueta}] Error solicitando código de vinculación:`
+            ),
+            err?.message || err
+          );
+
+        } finally {
+
+          pairingEnProceso =
+            false;
+        }
+      }
+
+
+      /* ========================================================
+       * CONEXIÓN ABIERTA
+       * ======================================================== */
+
       if (
         connection === "open"
       ) {
@@ -949,6 +901,7 @@ export async function crearBot({
         if (onReady) {
 
           try {
+
             await onReady(
               sock
             );
@@ -965,6 +918,10 @@ export async function crearBot({
         }
       }
 
+
+      /* ========================================================
+       * CONEXIÓN CERRADA
+       * ======================================================== */
 
       if (
         connection === "close"
@@ -990,7 +947,7 @@ export async function crearBot({
 
           console.log(
             chalk.red(
-              `[${etiqueta}] Sesión cerrada.`
+              `[${etiqueta}] Sesión cerrada. Debes vincular nuevamente.`
             )
           );
 
@@ -998,6 +955,7 @@ export async function crearBot({
           if (onLoggedOut) {
 
             try {
+
               await onLoggedOut();
 
             } catch (err) {
